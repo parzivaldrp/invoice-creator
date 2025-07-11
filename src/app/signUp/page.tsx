@@ -21,7 +21,12 @@ import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'react-toastify';
 
-
+function validateEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+function validatePassword(password: string) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{6,}$/.test(password);
+}
 
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
@@ -34,66 +39,75 @@ export default function Signup() {
     agreeToTerms: false,
   });
   const [isLoading, setIsLoading] = useState(false);
-      const router = useRouter();
-
+  const router = useRouter();
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
 
-  if (formData.password !== formData.confirmPassword) {
-    toast.warning("Passwords don't match!");
-    setIsLoading(false);
-    return;
-  }
-
-  if (!formData.agreeToTerms) {
-    toast.warning("Please agree to the terms of service!");
-    setIsLoading(false);
-    return;
-  }
-
-  const { data, error } = await supabase.auth.signUp({
-    email: formData.email,
-    password: formData.password,
-    options: {
-      data: {
-        full_name: formData.name,
-      },
-      emailRedirectTo: `${window.location.origin}/page`
-    },
-  });
-
-  if (error) {
-    if (error.message.includes("Email already exists")) {
-      toast.error("This email is already registered. Please log in.");
-    } else if (error.message.includes("Password must be at least 6 characters")) {
-      toast.error("Password must be at least 6 characters long.");
-    } else {
-      toast.error(error.message);
+    // Client-side validation
+    if (!formData.name || formData.name.trim().length < 2) {
+      toast.warning("Name must be at least 2 characters.");
+      setIsLoading(false);
+      return;
     }
+    if (!validateEmail(formData.email)) {
+      toast.warning("Please enter a valid email address.");
+      setIsLoading(false);
+      return;
+    }
+    if (!validatePassword(formData.password)) {
+      toast.warning("Password must be at least 6 characters, include uppercase, lowercase, number, and special character.");
+      setIsLoading(false);
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      toast.warning("Passwords don't match!");
+      setIsLoading(false);
+      return;
+    }
+    if (!formData.agreeToTerms) {
+      toast.warning("Please agree to the terms of service!");
+      setIsLoading(false);
+      return;
+    }
+
+    // Sign up with Supabase Auth
+    const { data, error } = await supabase.auth.signUp({
+      email: formData.email,
+      password: formData.password,
+      options: {
+        data: { full_name: formData.name },
+        emailRedirectTo: `${window.location.origin}/dashboard`
+      },
+    });
+
+    // Debug logging
+    console.log("Supabase signUp result:", { data, error });
+
+    // If there's an error, handle it
+    if (error) {
+      toast.error(error.message || "Something went wrong.");
+      setIsLoading(false);
+      return;
+    }
+
+    // If no user is returned, treat as error (e.g., email already registered but not confirmed)
+    if (!data?.user) {
+      toast.error("This email is already registered or waiting for confirmation. Please log in.");
+      setIsLoading(false);
+      return;
+    }
+
+    // Only runs if there is NO error and a user was created
+    toast.success("Signup successful! Please check your email to confirm your account.");
     setIsLoading(false);
-    return;
-  }
-
-  toast.success("Signup successful! Please check your email to confirm your account.");
-  setIsLoading(false);
-
-  setFormData({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    agreeToTerms: false,
-  });
-  router.push("/")
-      
-
-};
+    router.push("/login");
+  };
 
 
   return (

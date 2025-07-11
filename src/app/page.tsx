@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -12,8 +14,35 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/lib/authContext";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Index() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user) {
+    return null; // Will redirect to dashboard
+  }
+
   const features = [
     {
       icon: <FileText className="h-8 w-8 text-blue-600" />,
@@ -79,22 +108,24 @@ export default function Index() {
               get you paid faster.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/invoice_generator">
+              <Link href="/signUp">
                 <Button
                   size="lg"
                   className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
                 >
-                  Create Your First Invoice
+                  Get Started Free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <Button
-                size="lg"
-                variant="outline"
-                className="px-8 py-3 text-lg border-blue-600 text-blue-600 hover:bg-blue-50"
-              >
-                View Demo
-              </Button>
+              <Link href="/login">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="px-8 py-3 text-lg border-blue-600 text-blue-600 hover:bg-blue-50"
+                >
+                  Sign In
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

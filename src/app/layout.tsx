@@ -5,6 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from 'react-toastify';
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { AuthProvider } from "@/lib/authContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,20 +33,21 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ overscrollBehaviorX: "auto" }}
       >
-        <Navbar/>
-        <ToastContainer 
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover />
-        {children}
-
-        <Footer/>
+        <AuthProvider>
+          <Navbar/>
+          <ToastContainer 
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop={false}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover />
+          {children}
+          <Footer/>
+        </AuthProvider>
       </body>
     </html>
   );

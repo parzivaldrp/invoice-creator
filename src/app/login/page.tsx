@@ -18,6 +18,10 @@ import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'react-toastify';
 
+function validateEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -31,10 +35,22 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Client-side validation
+    if (!validateEmail(email)) {
+      toast.warning("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      toast.warning("Please enter your password.");
+      return;
+    }
+
+    setIsLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
+    setIsLoading(false);
 
     if (error) {
       if (error.message.includes("Invalid login credentials")) {

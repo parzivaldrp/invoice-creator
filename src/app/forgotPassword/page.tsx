@@ -16,6 +16,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { supabase } from '@/lib/supabaseClient';
+import { toast } from 'react-toastify';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -26,12 +28,33 @@ export default function ForgotPassword() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
 
-    console.log("Password reset request for:", email);
-    setIsLoading(false);
-    setIsSubmitted(true);
+      if (error) {
+        if (error.message.includes("User not found")) {
+          toast.error("No account found with this email address.");
+        } else {
+          toast.error(error.message);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      toast.success("Password reset instructions sent to your email!");
+      setIsLoading(false);
+      setIsSubmitted(true);
+    } catch (error) {
+      toast.error("An unexpected error occurred. Please try again.");
+      setIsLoading(false);
+    }
+  };
+
+  const handleResend = () => {
+    setIsSubmitted(false);
+    setEmail("");
   };
 
   if (isSubmitted) {
@@ -76,7 +99,7 @@ export default function ForgotPassword() {
 
             <CardFooter className="flex flex-col space-y-3">
               <Button
-                onClick={() => setIsSubmitted(false)}
+                onClick={handleResend}
                 variant="outline"
                 className="w-full h-12 border-gray-200 hover:bg-gray-50"
               >
