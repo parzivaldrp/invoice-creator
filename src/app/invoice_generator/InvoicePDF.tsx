@@ -5,7 +5,6 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
   Image
 } from '@react-pdf/renderer';
 
@@ -86,7 +85,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   table: {
-    // @ts-ignore
+    // @ts-expect-error - display: 'table' is not supported in react-pdf but needed for table layout
     display: 'table',
     width: 'auto',
     marginTop: 12,

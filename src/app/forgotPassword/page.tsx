@@ -46,7 +46,7 @@ export default function ForgotPassword() {
       toast.success("Password reset instructions sent to your email!");
       setIsLoading(false);
       setIsSubmitted(true);
-    } catch (error) {
+    } catch {
       toast.error("An unexpected error occurred. Please try again.");
       setIsLoading(false);
     }
@@ -70,7 +70,7 @@ export default function ForgotPassword() {
               Check your email
             </h1>
             <p className="mt-2 text-sm text-gray-600">
-              We've sent password reset instructions to your email
+              {`We've sent password reset instructions to your email`}
             </p>
           </div>
 
@@ -81,7 +81,7 @@ export default function ForgotPassword() {
                   Reset link sent!
                 </h3>
                 <p className="text-sm text-gray-600">
-                  We've sent a password reset link to:
+                 {`We've sent a password reset link to:`}
                 </p>
                 <p className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-2 rounded-md">
                   {email}
@@ -93,7 +93,7 @@ export default function ForgotPassword() {
                   Please check your email and click the link to reset your
                   password.
                 </p>
-                <p>If you don't see the email, check your spam folder.</p>
+                <p>{`If you don't see the email, check your spam folder.`}</p>
               </div>
             </CardContent>
 
@@ -138,7 +138,7 @@ export default function ForgotPassword() {
             Forgot your password?
           </h1>
           <p className="mt-2 text-sm text-gray-600">
-            No worries, we'll send you reset instructions
+            {`No worries, we'll send you reset instructions`}
           </p>
         </div>
 
@@ -149,8 +149,8 @@ export default function ForgotPassword() {
               Reset Password
             </CardTitle>
             <CardDescription className="text-center text-gray-600">
-              Enter your email address and we'll send you a link to reset your
-              password
+              {`Enter your email address and we'll send you a link to reset your password`}
+             
             </CardDescription>
           </CardHeader>
 

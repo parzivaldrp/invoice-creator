@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Download, Save, Plus, Trash2 } from "lucide-react";
+import { Download, Save, Plus, Trash2 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { toast } from 'react-toastify';
 import { PDFDownloadLink } from '@react-pdf/renderer';
@@ -53,11 +53,11 @@ export default function InvoiceGenerator() {
     taxRate: 0,
   });
 
-  const updateInvoiceData = (field: keyof InvoiceData, value: any) => {
+  const updateInvoiceData = (field: keyof InvoiceData, value: string | number | InvoiceItem[]) => {
     setInvoiceData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updateItem = (id: string, field: keyof InvoiceItem, value: any) => {
+  const updateItem = (id: string, field: keyof InvoiceItem, value: string | number) => {
     setInvoiceData((prev) => ({
       ...prev,
       items: prev.items.map((item) => {
@@ -106,7 +106,7 @@ export default function InvoiceGenerator() {
       // Save to localStorage or send to server
       localStorage.setItem("invoice-draft", JSON.stringify(invoiceData));
       toast.success("Invoice saved successfully!");
-    } catch (error) {
+    } catch  {
       toast.error("Failed to save invoice. Please try again.");
     }
   };
@@ -295,7 +295,7 @@ export default function InvoiceGenerator() {
                 </div>
 
                 <div className="space-y-4">
-                  {invoiceData.items.map((item, index) => (
+                  {invoiceData.items.map((item) => (
                     <div
                       key={item.id}
                       className="grid grid-cols-12 gap-2 items-end"

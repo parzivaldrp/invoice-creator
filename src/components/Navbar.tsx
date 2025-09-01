@@ -15,7 +15,7 @@ export default function Navbar() {
     try {
       await signOut();
       toast.success("Signed out successfully!");
-    } catch (error) {
+    } catch {
       toast.error("Error signing out. Please try again.");
     }
   };
