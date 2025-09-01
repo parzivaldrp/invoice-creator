@@ -3,21 +3,16 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-interface PlaceholderProps {
-  title: string;
-  description: string;
-}
-
-export default function Placeholder({ title, description }: PlaceholderProps) {
+export default function page() {
   return (
     <>
       <div className="min-h-screen bg-gray-50">
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">{title}</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">{`Page Under Development`}</h1>
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              {description}
+              {`This feature is currently being worked on. Please check back soon!`}
             </p>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
