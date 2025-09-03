@@ -1,18 +1,22 @@
-
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import React from "react";
 
-export default function Placeholder() {
+interface PlaceholderProps {
+  title: string;
+  description: string;
+}
+
+const Placeholder: React.FC<PlaceholderProps> = ({ title, description }) => {
   return (
     <>
       <div className="min-h-screen bg-gray-50">
-
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">{`Page Under Development`}</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">{title}</h1>
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              {`This feature is currently being worked on. Please check back soon!`}
+              {description}
             </p>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
@@ -49,15 +53,11 @@ export default function Placeholder() {
             </Link>
           </div>
         </div>
-
-      </div>
-
-      <div className="flex flex-col relative mt-5">
-        <div className="gap-5 flex max-md:flex-col max-md:gap-0">
-          <div className="flex flex-col line-height-normal w-[50%] ml-0 max-md:w-full max-md:ml-0" />
-          <div className="flex flex-col line-height-normal w-[50%] ml-5 max-md:w-full max-md:ml-0" />
-        </div>
       </div>
     </>
   );
-}
+};
+
+export default Placeholder;
+
+

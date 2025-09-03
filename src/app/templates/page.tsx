@@ -1,6 +1,5 @@
 'use client'
-import Placeholder from "@/app/Placeholder/page"; // or move to /components if cleaner
-
+import Placeholder from '@/components/Placeholder'
 export default function TemplatesPage() {
   return (
     <Placeholder

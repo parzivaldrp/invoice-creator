@@ -1,5 +1,4 @@
-import Placeholder from '../Placeholder/page'
-
+import Placeholder from '@/components/Placeholder'
 const page = () => {
   return (
     <Placeholder
