@@ -1,5 +1,5 @@
 'use client';
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,12 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { toast } from 'react-toastify';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import InvoicePDF from './InvoicePDF';
+import { supabase } from "@/lib/supabaseClient";
+import { useInvoiceActions } from "@/lib/useInvoiceActions";
+import { useRouter } from 'next/navigation';
+
+
+
 
 interface InvoiceItem {
   id: string;
@@ -52,6 +58,24 @@ export default function InvoiceGenerator() {
     notes: "",
     taxRate: 0,
   });
+  const router = useRouter();
+  const { saveInvoiceToDB } = useInvoiceActions(invoiceData);
+
+  useEffect(() => {
+    let isMounted = true;
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      if (!isMounted) return;
+      if (error) {
+        toast.error("You have to login first");
+        router.push('/login');
+      } else {
+        console.log("User ID:", user?.id);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const updateInvoiceData = (field: keyof InvoiceData, value: string | number | InvoiceItem[]) => {
     setInvoiceData((prev) => ({ ...prev, [field]: value }));
@@ -101,15 +125,6 @@ export default function InvoiceGenerator() {
   const taxAmount = subtotal * (invoiceData.taxRate / 100);
   const total = subtotal + taxAmount;
 
-  const handleSaveInvoice = () => {
-    try {
-      // Save to localStorage or send to server
-      localStorage.setItem("invoice-draft", JSON.stringify(invoiceData));
-      toast.success("Invoice saved successfully!");
-    } catch  {
-      toast.error("Failed to save invoice. Please try again.");
-    }
-  };
 
   return (
     <ProtectedRoute>
@@ -121,7 +136,7 @@ export default function InvoiceGenerator() {
               Create New Invoice
             </h1>
             <p className="text-gray-600">
-              Fill in the details below to generate your professional invoice
+              {`Fill in the details below to generate your professional invoice`}
             </p>
           </div>
 
@@ -160,7 +175,7 @@ export default function InvoiceGenerator() {
                     <Input
                       id="dueDate"
                       type="date"
-                      value={invoiceData.dueDate} 
+                      value={invoiceData.dueDate}
                       onChange={(e) =>
                         updateInvoiceData("dueDate", e.target.value)
                       }
@@ -289,7 +304,7 @@ export default function InvoiceGenerator() {
                     size="sm"
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    <Plus className="h-4 w-4 mr-2" /> 
+                    <Plus className="h-4 w-4 mr-2" />
                     Add Item
                   </Button>
                 </div>
@@ -427,13 +442,22 @@ export default function InvoiceGenerator() {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
-                  onClick={handleSaveInvoice}
+                  onClick={() => saveInvoiceToDB("draft")}
                   size="lg"
                   variant="outline"
                   className="flex-1"
                 >
                   <Save className="h-5 w-5 mr-2" />
                   Save Invoice
+                </Button>
+                <Button
+                  onClick={() => saveInvoiceToDB("final")}
+                  size="lg"
+                  variant="outline"
+                  className="flex-1"
+                >
+                  <Save className="h-5 w-5 mr-2" />
+                  final
                 </Button>
                 <PDFDownloadLink
                   document={
@@ -451,6 +475,7 @@ export default function InvoiceGenerator() {
                       size="lg"
                       className="flex-1 bg-blue-600 hover:bg-blue-700"
                       disabled={loading}
+
                     >
                       <Download className="h-5 w-5 mr-2" />
                       {loading ? 'Generating PDF...' : 'Generate PDF'}

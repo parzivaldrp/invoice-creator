@@ -6,15 +6,20 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/authContext";
 import { toast } from 'react-toastify';
+import { useRouter } from 'next/navigation';
+
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, loading, signOut } = useAuth();
+  const router = useRouter();
+
 
   const handleSignOut = async () => {
     try {
       await signOut();
       toast.success("Signed out successfully!");
+      router.push('/');
     } catch {
       toast.error("Error signing out. Please try again.");
     }

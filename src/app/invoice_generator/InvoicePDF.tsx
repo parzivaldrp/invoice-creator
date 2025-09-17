@@ -122,7 +122,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoiceData, subtotal, taxAmoun
     <Page size="A4" style={styles.page}>
       {/* Header */}
       <View style={styles.header}>
-        <Image src={logo.src || logo} style={styles.logo} />
+        <Image src={logo.src || logo} style={styles.logo}  />
         <View>
           <Text style={styles.title}>INVOICE</Text>
           <Text style={styles.subtitle}>#{invoiceData.invoiceNumber}</Text>

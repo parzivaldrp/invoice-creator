@@ -4,7 +4,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,39 +75,30 @@ export default function Signup() {
       return;
     }
 
-    // Sign up with Supabase Auth
-    const { data, error } = await supabase.auth.signUp({
+   try {
+    const { data: { user }, error: signUpError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
-      options: {
-        data: { full_name: formData.name },
-        emailRedirectTo: `${window.location.origin}/dashboard`
-      },
+
     });
+     if (signUpError) throw signUpError;
+     if (user) {
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: user.id,
+        full_name: formData.name,
+        agree_to_terms: formData.agreeToTerms,
+      });
 
-    // Debug logging
-    console.log("Supabase signUp result:", { data, error });
-
-    // If there's an error, handle it
-    if (error) {
-      toast.error(error.message || "Something went wrong.");
-      setIsLoading(false);
-      return;
+      if (profileError) throw profileError;
+      toast.success("Sign up successful! Check your email for confirmation.")
+      router.push('/login');
     }
-
-    // If no user is returned, treat as error (e.g., email already registered but not confirmed)
-    if (!data?.user) {
-      toast.error("This email is already registered or waiting for confirmation. Please log in.");
-      setIsLoading(false);
-      return;
-    }
-
-    // Only runs if there is NO error and a user was created
-    toast.success("Signup successful! Please check your email to confirm your account.");
+   } catch  {
+    toast.error("signUP failed")
+   } finally {
     setIsLoading(false);
-    router.push("/login");
+   }
   };
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 px-4 sm:px-6 lg:px-8">
