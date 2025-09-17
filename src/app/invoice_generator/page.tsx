@@ -75,7 +75,7 @@ export default function InvoiceGenerator() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  });
 
   const updateInvoiceData = (field: keyof InvoiceData, value: string | number | InvoiceItem[]) => {
     setInvoiceData((prev) => ({ ...prev, [field]: value }));
