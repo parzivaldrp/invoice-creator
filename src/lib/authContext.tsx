@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  profile: { full_name?: string } | null; 
   signOut: () => Promise<void>;
 }
 
@@ -17,21 +18,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<{full_name?: string } | null>(null);
+
+
+const fetchProfiles = async (userId: string) => {
+  const { data, error } = await supabase
+  .from('profiles')
+  .select('*')
+  .eq('id', userId)
+  .single();
+  if(!error && data){
+    setProfile(data);
+
+  } else{
+    setProfile(null);
+  }
+
+};
+
+
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) await fetchProfiles(currentUser.id);
       setLoading(false);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if(currentUser){
+        await fetchProfiles(currentUser.id);
+      }else{
+        setProfile(null);
+      }
       setLoading(false);
     });
 
@@ -40,12 +68,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null)
+    setProfile(null);
   };
 
   const value = {
     user,
     session,
     loading,
+    profile,
     signOut,
   };
 

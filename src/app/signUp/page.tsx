@@ -1,6 +1,7 @@
 
 'use client'
 
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
@@ -44,6 +45,10 @@ export default function Signup() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleCheckboxChange = (checked: boolean | "indeterminate") => {
+    setFormData((prev) => ({ ...prev, agreeToTerms: checked === true }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -79,22 +84,86 @@ export default function Signup() {
     const { data: { user }, error: signUpError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
-
     });
-     if (signUpError) throw signUpError;
-     if (user) {
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: user.id,
+    
+    if (signUpError) {
+      console.error('Sign up error:', signUpError);
+      // Handle specific error cases
+      if (signUpError.message.includes('already registered')) {
+        toast.error("This email is already registered. Please sign in instead.");
+      } else if (signUpError.message.includes('password')) {
+        toast.error("Password does not meet requirements.");
+      } else {
+        toast.error(`Sign up failed: ${signUpError.message}`);
+      }
+      setIsLoading(false);
+      return;
+    }
+    
+    if (user) {
+      // Try to create profile using a database function that bypasses RLS
+      // This is more secure than direct insert with RLS policies
+      const { error: profileError } = await supabase.rpc('create_user_profile', {
+        user_id: user.id,
         full_name: formData.name,
         agree_to_terms: formData.agreeToTerms,
       });
 
-      if (profileError) throw profileError;
-      toast.success("Sign up successful! Check your email for confirmation.")
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        
+        // If RPC function doesn't exist, try direct insert (will fail if RLS is blocking)
+        if (profileError.code === '42883' || profileError.message.includes('function')) {
+          // Function doesn't exist, try direct insert
+          const { error: directInsertError } = await supabase.from("profiles").insert({
+            id: user.id,
+            full_name: formData.name,
+            agree_to_terms: formData.agreeToTerms,
+          });
+
+          if (directInsertError) {
+            console.error('Direct insert also failed:', directInsertError);
+            if (directInsertError.code === '42501') {
+              // RLS policy error - user needs to set up database trigger or RLS policy
+              toast.error("Account created but profile setup failed. Please run the SQL setup script in Supabase. See console for instructions.");
+              console.error('========================================');
+              console.error('RLS POLICY SETUP REQUIRED');
+              console.error('========================================');
+              console.error('Your account was created, but the profile could not be saved due to missing RLS policies.');
+              console.error('');
+              console.error('TO FIX THIS:');
+              console.error('1. Open your Supabase dashboard');
+              console.error('2. Go to SQL Editor');
+              console.error('3. Open the file: fix-rls-policy.sql (in your project root)');
+              console.error('4. Copy and paste the SQL into the editor');
+              console.error('5. Click "Run"');
+              console.error('');
+              console.error('After running the SQL, signup will work properly!');
+              console.error('========================================');
+            } else if (directInsertError.code === '23505') {
+              // Duplicate key - profile already exists (might be from trigger)
+              console.log('Profile already exists, continuing...');
+            } else {
+              toast.warning("Account created, but profile setup had an issue. Please contact support.");
+            }
+          }
+        } else if (profileError.code === '23505') {
+          // Duplicate key error - profile might already exist
+          console.log('Profile might already exist, continuing...');
+        } else {
+          toast.warning("Account created, but profile setup had an issue. Please contact support.");
+        }
+      }
+      
+      toast.success("Sign up successful! Check your email for confirmation.");
       router.push('/login');
+    } else {
+      toast.error("Sign up failed: No user was created.");
     }
-   } catch  {
-    toast.error("signUP failed")
+   } catch (error: unknown) {
+    console.error('Unexpected error during signup:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+    toast.error(`Sign up failed: ${errorMessage}`);
    } finally {
     setIsLoading(false);
    }
@@ -242,9 +311,7 @@ export default function Signup() {
                 <Checkbox
                   id="terms"
                   checked={formData.agreeToTerms}
-                  onCheckedChange={(checked) =>
-                    handleInputChange("agreeToTerms", checked)
-                  }
+                  onCheckedChange={handleCheckboxChange}
                   className="border-gray-300"
                 />
                 <Label

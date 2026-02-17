@@ -21,7 +21,7 @@ interface InvoiceItem {
 
 interface InvoiceData {
   invoiceNumber: string;
-  date: string;
+  issueDate: string;
   dueDate: string;
   fromCompany: string;
   fromAddress: string;
@@ -122,7 +122,8 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoiceData, subtotal, taxAmoun
     <Page size="A4" style={styles.page}>
       {/* Header */}
       <View style={styles.header}>
-        <Image src={logo.src || logo} style={styles.logo}  />
+        {/* eslint-disable-next-line jsx-a11y/alt-text */}
+        <Image src={logo.src || logo} style={styles.logo} />
         <View>
           <Text style={styles.title}>INVOICE</Text>
           <Text style={styles.subtitle}>#{invoiceData.invoiceNumber}</Text>
@@ -134,7 +135,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoiceData, subtotal, taxAmoun
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <View>
             <Text style={styles.label}>Invoice Date:</Text>
-            <Text style={styles.value}>{invoiceData.date}</Text>
+            <Text style={styles.value}>{invoiceData.issueDate}</Text>
           </View>
           <View>
             <Text style={styles.label}>Due Date:</Text>

@@ -18,7 +18,18 @@
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
-4. **Configure Authentication**
+4. **Set Up Database Tables and Policies**
+   - Go to SQL Editor in your Supabase dashboard
+   - Open the `supabase-setup.sql` file from this project
+   - Copy and paste the entire SQL script into the SQL Editor
+   - Click "Run" to execute the script
+   - This will create:
+     - `profiles` table for user profile data
+     - Row Level Security (RLS) policies
+     - Database function for secure profile creation
+     - Optional trigger for auto-creating profiles
+
+5. **Configure Authentication**
    - Go to Authentication > Settings in your Supabase dashboard
    - Enable Email confirmations (recommended)
    - Set up your site URL (e.g., `http://localhost:3000` for development)
@@ -78,6 +89,10 @@
 - **Email not sending**: Verify Supabase email settings
 - **Redirect issues**: Check redirect URLs in Supabase dashboard
 - **CORS errors**: Ensure your domain is whitelisted in Supabase
+- **"RLS policy violation" error on signup**: 
+  - Make sure you've run the `supabase-setup.sql` script in your Supabase SQL Editor
+  - The script sets up the necessary RLS policies and database function
+  - Check that the `profiles` table exists and has the correct structure
 
 ## Development
 

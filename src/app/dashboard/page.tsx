@@ -8,15 +8,15 @@ import { FileText, Plus, Download, Settings, User } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  const displayName = user?.user_metadata?.full_name || user?.email;
+  const { user, profile } = useAuth();
+  const displayName = profile?.full_name ?? user?.email ?? 'Guest';
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-8">  
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Welcome back, {displayName}!
             </h1>
@@ -44,6 +44,7 @@ export default function Dashboard() {
             </Card>
 
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <Link href="/myInvoice">
               <CardContent className="p-6">
                 <div className="flex items-center space-x-3">
                   <div className="bg-green-100 p-3 rounded-lg">
@@ -55,6 +56,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </CardContent>
+              </Link>
             </Card>
 
             <Card className="hover:shadow-md transition-shadow cursor-pointer">

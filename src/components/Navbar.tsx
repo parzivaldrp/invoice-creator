@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
 
 
@@ -44,7 +44,7 @@ export default function Navbar() {
   }
 
   // Get display name
-  const displayName = user?.user_metadata?.full_name || user?.email;
+  const displayName = profile?.full_name ?? user?.email;
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">

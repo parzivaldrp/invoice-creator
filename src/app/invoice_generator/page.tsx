@@ -26,7 +26,7 @@ interface InvoiceItem {
 
 interface InvoiceData {
   invoiceNumber: string;
-  date: string;
+  issueDate: string;
   dueDate: string;
   fromCompany: string;
   fromAddress: string;
@@ -43,7 +43,7 @@ interface InvoiceData {
 export default function InvoiceGenerator() {
   const [invoiceData, setInvoiceData] = useState<InvoiceData>({
     invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
-    date: new Date().toISOString().split("T")[0],
+    issueDate: new Date().toISOString().split("T")[0],
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0],
@@ -165,8 +165,8 @@ export default function InvoiceGenerator() {
                     <Input
                       id="date"
                       type="date"
-                      value={invoiceData.date}
-                      onChange={(e) => updateInvoiceData("date", e.target.value)}
+                      value={invoiceData.issueDate}
+                      onChange={(e) => updateInvoiceData("issueDate", e.target.value)}
                       className="mt-1"
                     />
                   </div>
@@ -442,7 +442,7 @@ export default function InvoiceGenerator() {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
-                  onClick={() => saveInvoiceToDB("draft")}
+                  onClick={() => saveInvoiceToDB('draft')}
                   size="lg"
                   variant="outline"
                   className="flex-1"
@@ -451,7 +451,7 @@ export default function InvoiceGenerator() {
                   Save Invoice
                 </Button>
                 <Button
-                  onClick={() => saveInvoiceToDB("final")}
+                  onClick={() => saveInvoiceToDB('final')}
                   size="lg"
                   variant="outline"
                   className="flex-1"
@@ -504,7 +504,7 @@ export default function InvoiceGenerator() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Invoice Date:</p>
-                    <p className="font-medium">{invoiceData.date}</p>
+                    <p className="font-medium">{invoiceData.issueDate}</p>
                   </div>
                   <div>
                     <p className="text-gray-600">Due Date:</p>
@@ -582,10 +582,10 @@ export default function InvoiceGenerator() {
                   </div>
                   <div className="flex justify-between text-lg font-bold border-t pt-2">
                     <span>Total:</span>
+                    
                     <span>${total.toFixed(2)}</span>
                   </div>
                 </div>
-
                 {/* Notes */}
                 {invoiceData.notes && (
                   <div className="border-t pt-4">
