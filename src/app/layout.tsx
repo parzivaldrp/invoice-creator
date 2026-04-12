@@ -5,7 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from 'react-toastify';
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { AuthProvider } from "@/lib/authContext";
+import { AuthProvider } from "@/lib/authContext";``
 import { Toaster } from "@/components/ui/sonner"
 
 const geistSans = Geist({
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   title: "InvoicePro",
   description: "Welcom to InvoicePro",
   icons: {
-    icon: "/logo.png",
+    icon: "/favicon.png",
   },
 };
 

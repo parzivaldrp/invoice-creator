@@ -8,12 +8,11 @@ import { Download, Save, Plus, Trash2 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { toast } from 'react-toastify';
 //import { PDFDownloadLink } from '@react-pdf/renderer';
-import InvoicePDF from './InvoicePDF';
 import { supabase } from "@/lib/supabaseClient";
 import { useInvoiceActions } from "@/lib/useInvoiceActions";
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-
+import { Suspense } from 'react';
 
 
 
@@ -46,7 +45,14 @@ const PDFDownloadLink = dynamic(
   { ssr: false }
 );
 
-export default function InvoiceGenerator() {
+const InvoicePDF = dynamic(  // ← ADD THIS
+  () => import('./InvoicePDF'),
+  { ssr: false }
+);
+
+
+
+function InvoiceGeneratorContent() {
   const [invoiceData, setInvoiceData] = useState<InvoiceData>({
     invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
     issueDate: new Date().toISOString().split("T")[0],
@@ -69,6 +75,8 @@ export default function InvoiceGenerator() {
   const editId = searchParams.get('id'); // if id exists, we're editing an existing invoice
   const router = useRouter();
   const { saveInvoiceToDB } = useInvoiceActions(invoiceData, editId);
+  const [isClient, setIsClient] = useState(false);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -522,6 +530,7 @@ export default function InvoiceGenerator() {
                   <Save className="h-5 w-5 mr-2" />
                   final
                 </Button>
+                {isClient && (
                 <PDFDownloadLink
                   document={
                     <InvoicePDF
@@ -545,6 +554,7 @@ export default function InvoiceGenerator() {
                     </Button>
                   )}
                 </PDFDownloadLink>
+                )}
               </div>
             </div>
 
@@ -665,5 +675,12 @@ export default function InvoiceGenerator() {
       </div>
 
     </ProtectedRoute>
+  );
+}
+export default function InvoiceGenerator() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <InvoiceGeneratorContent />
+    </Suspense>
   );
 }
