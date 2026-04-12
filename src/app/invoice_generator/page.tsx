@@ -7,11 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Save, Plus, Trash2 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { toast } from 'react-toastify';
-import { PDFDownloadLink } from '@react-pdf/renderer';
+//import { PDFDownloadLink } from '@react-pdf/renderer';
 import InvoicePDF from './InvoicePDF';
 import { supabase } from "@/lib/supabaseClient";
 import { useInvoiceActions } from "@/lib/useInvoiceActions";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
 
 
 
@@ -39,6 +41,10 @@ interface InvoiceData {
   notes: string;
   taxRate: number;
 }
+const PDFDownloadLink = dynamic(
+  () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
+  { ssr: false }
+);
 
 export default function InvoiceGenerator() {
   const [invoiceData, setInvoiceData] = useState<InvoiceData>({
@@ -58,8 +64,11 @@ export default function InvoiceGenerator() {
     notes: "",
     taxRate: 0,
   });
+
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('id'); // if id exists, we're editing an existing invoice
   const router = useRouter();
-  const { saveInvoiceToDB } = useInvoiceActions(invoiceData);
+  const { saveInvoiceToDB } = useInvoiceActions(invoiceData, editId);
 
   useEffect(() => {
     let isMounted = true;
@@ -75,7 +84,58 @@ export default function InvoiceGenerator() {
     return () => {
       isMounted = false;
     };
-  });
+  }, []);
+
+  // If editId exists, fetch the invoice data and pre-fill the form
+
+  useEffect(() => {
+  if (!editId) return; // no id = new invoice, skip
+
+  const fetchInvoiceForEdit = async () => {
+    // Fetch the invoice
+    const { data: invoice, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', editId)
+      .single();
+
+    if (error) {
+      toast.error('Failed to load invoice');
+      return;
+    }
+
+    // Fetch the items
+    const { data: items } = await supabase
+      .from('invoice_items')
+      .select('*')
+      .eq('invoice_id', editId);
+
+    // Pre-fill the form with existing data
+    setInvoiceData({
+      invoiceNumber: invoice.invoice_number,
+      issueDate: invoice.issue_date,
+      dueDate: invoice.due_date,
+      fromCompany: invoice.from_company || '',
+      fromAddress: invoice.from_address || '',
+      fromEmail: invoice.from_email || '',
+      fromPhone: invoice.from_phone || '',
+      toCompany: invoice.to_company || '',
+      toAddress: invoice.to_address || '',
+      toEmail: invoice.to_email || '',
+      notes: invoice.notes || '',
+      taxRate: invoice.tax_rate || 0,
+      items: items?.map((item) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        rate: item.rate,
+        amount: item.amount,
+      })) || [],
+    });
+  };
+
+  fetchInvoiceForEdit();
+}, [editId]);
 
   const updateInvoiceData = (field: keyof InvoiceData, value: string | number | InvoiceItem[]) => {
     setInvoiceData((prev) => ({ ...prev, [field]: value }));
@@ -451,7 +511,10 @@ export default function InvoiceGenerator() {
                   Save Invoice
                 </Button>
                 <Button
-                  onClick={() => saveInvoiceToDB('final')}
+                  onClick={async () => { await saveInvoiceToDB('final');
+                    router.push('/myInvoice');
+
+                  }}
                   size="lg"
                   variant="outline"
                   className="flex-1"

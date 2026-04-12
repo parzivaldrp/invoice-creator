@@ -4,9 +4,10 @@ import * as React from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Building2, Eye, Download, ArrowRight } from "lucide-react";
+import { Calendar, Building2, Eye, Download, ArrowRight, Trash2, Send } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import StatusBadge, { type Status } from "../StatusBadge/page";
+import { useRouter } from "next/navigation";
 
 // 1️⃣ Define the Invoice type
 interface Invoice {
@@ -21,6 +22,7 @@ interface Invoice {
   issue_date: string | Date; // accepts ISO string or Date
   due_date?: string | Date;
   pdf_url?: string;
+  total?: number;
 }
 
 // 2️⃣ Props for the component
@@ -28,15 +30,23 @@ interface InvoiceCardProps {
   invoice: Invoice;
   onView: (invoice: Invoice) => void;
   onDownload?: (invoiceId: string) => Promise<void> | void;
+  onDelete?: (invoiceId: string) => void;
+  onSend?: (invoiceId: string) => void;
 }
+
 
 // 3️⃣ Component
 const InvoiceCard: React.FC<InvoiceCardProps> = ({
   invoice,
   onView,
   onDownload,
+  onDelete,
+  onSend,
+
 }) => {
-  // Make sure the dates are converted properly
+  const router = useRouter();
+
+  // dates are converted to Date objects for easier manipulation
   const dueDate = invoice.due_date ? new Date(invoice.due_date) : undefined;
   const issueDate = new Date(invoice.issue_date);
 
@@ -69,7 +79,7 @@ const InvoiceCard: React.FC<InvoiceCardProps> = ({
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-slate-900">
-              ${invoice.amount?.toLocaleString() || "0"}
+              ${invoice.total?.toLocaleString() || "0"}
             </p>
             <p className="text-sm text-slate-500">{invoice.currency || "USD"}</p>
           </div>
@@ -92,9 +102,8 @@ const InvoiceCard: React.FC<InvoiceCardProps> = ({
               </div>
               {dueDate && (
                 <div
-                  className={`flex items-center gap-1 ${
-                    isOverdue ? "text-red-600" : "text-slate-600"
-                  }`}
+                  className={`flex items-center gap-1 ${isOverdue ? "text-red-600" : "text-slate-600"
+                    }`}
                 >
                   <Calendar className="w-4 h-4" />
                   <span>Due: {format(dueDate, "MMM d, yyyy")}</span>
@@ -105,15 +114,54 @@ const InvoiceCard: React.FC<InvoiceCardProps> = ({
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-100">
             <div className="flex gap-2">
+              {invoice.status === 'final' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onView(invoice)}
+                  className="flex items-center gap-2 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </Button>
+              )}
+              {invoice.status === 'final' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onSend?.(invoice.id)}
+                  className="flex items-center gap-2 hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                  Send
+                </Button>
+              )}
+
+
+              {/* Edit — only for draft invoices */}
+              {invoice.status === 'draft' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/invoice_generator?id=${invoice.id}`)}
+                  className="flex items-center gap-2 hover:bg-yellow-50 hover:border-yellow-200 hover:text-yellow-700 transition-colors"
+                >
+                  <Eye className="w-4 h-4 " />
+                  Edit
+                </Button>
+              )}
+
+              {/* Delete — always show */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onView(invoice)}
-                className="flex items-center gap-2 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                onClick={() => onDelete?.(invoice.id)}
+                className="flex items-center gap-2 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition-colors"
               >
-                <Eye className="w-4 h-4" />
-                View
+                <Trash2 className="w-4 h-4" />
+                Delete
               </Button>
+
               {invoice.pdf_url && (
                 <Button
                   variant="outline"

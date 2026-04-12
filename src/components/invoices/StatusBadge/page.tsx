@@ -3,7 +3,7 @@ import { Badge } from "../../ui/badge";
 import { CheckCircle, Clock, AlertTriangle, FileText, X } from "lucide-react";
 
 // 1️⃣ Define all allowed statuses as a union type
-export type Status = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+export type Status = 'draft' | 'final' | 'sent' | 'paid' | 'overdue' | 'cancelled';
 
 // 2️⃣ Props for the component
 interface StatusBadgeProps {
@@ -18,12 +18,18 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     className: string;
     icon: React.ComponentType<{ className?: string }>;
   }> = {
-    draft: {
-      label: "Draft",
-      variant: "secondary",
-      className: "bg-slate-100 text-slate-700 hover:bg-slate-200",
-      icon: FileText
-    },
+      draft: {
+        label: "Draft",
+        variant: "secondary",
+        className: "bg-slate-100 text-slate-700 hover:bg-slate-200",
+        icon: FileText
+      },
+        final: {
+        label: "Final",
+        variant: "outline",
+        className: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100",
+        icon: Clock
+      },
     sent: {
       label: "Sent",
       variant: "outline",

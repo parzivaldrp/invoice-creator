@@ -15,22 +15,30 @@ import { Search, Plus, Filter, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-
 import StatsCards from "../../components/invoices/StatsCards/page";
 import InvoiceCard from "../../components/invoices/InvoiceCards/page";
+import { useRouter } from 'next/navigation';
 
 export interface InvoiceType {
   id: string;
   invoice_number: string | number;
   status: string;
   from_company: string;
+  from_address?: string;
+  from_email?: string;
+  from_phone?: string;
   to_company: string;
+  to_address?: string;
+  to_email?: string;
+  notes?: string;
+  tax_rate?: number;
   amount?: number;
   currency?: string;
   description?: string;
   issue_date: string | Date;
   due_date?: string | Date;
   pdf_url?: string;
+  total?: number;
 }
 
 export default function Page() {
@@ -39,6 +47,7 @@ export default function Page() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("issue_date");
+  const router = useRouter();
 
   const loadInvoices = useCallback(async () => {
     setIsLoading(true);
@@ -64,9 +73,99 @@ export default function Page() {
   }, [loadInvoices]);
 
   const handleView = (invoice: InvoiceType) => {
+    router.push(`/InvoiceDetailPage/${invoice.id}`);
     toast.info(`Viewing invoice #${invoice.invoice_number}`);
+    
     // navigate or modal logic here
   };
+
+const handleSend = async (invoiceId: string) => {
+  try {
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
+    if (!invoice?.to_email) {
+      toast.error('No client email found for this invoice');
+      return;
+    }
+
+    // Fetch invoice items from Supabase
+    const { data: items } = await supabase
+      .from('invoice_items')
+      .select('*')
+      .eq('invoice_id', invoiceId);
+
+    // Build invoiceData object for PDF generation
+    const invoiceData = {
+      invoiceNumber: invoice.invoice_number,
+      issueDate: invoice.issue_date,
+      dueDate: invoice.due_date,
+      fromCompany: invoice.from_company,
+      fromAddress: invoice.from_address || '',
+      fromEmail: invoice.from_email || '',
+      fromPhone: invoice.from_phone || '',
+      toCompany: invoice.to_company,
+      toAddress: invoice.to_address || '',
+      toEmail: invoice.to_email || '',
+      notes: invoice.notes || '',
+      taxRate: invoice.tax_rate || 0,
+      items: items || [],
+    };
+
+    const subtotal = invoiceData.items.reduce((sum: number, item: any) => sum + item.amount, 0);
+    const taxAmount = subtotal * (invoiceData.taxRate / 100);
+    const total = subtotal + taxAmount;
+
+    const res = await fetch('/api/send-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toEmail: invoice.to_email,
+        toCompany: invoice.to_company,
+        fromCompany: invoice.from_company,
+        invoiceNumber: invoice.invoice_number,
+        total,
+        dueDate: invoice.due_date,
+        invoiceData,   // ← now included
+        subtotal,      // ← now included
+        taxAmount,     // ← now included
+      }),
+    });
+
+    if (!res.ok) throw new Error('Failed to send');
+
+    await supabase
+      .from('invoices')
+      .update({ status: 'sent' })
+      .eq('id', invoiceId);
+
+    setInvoices((prev) =>
+      prev.map((inv) =>
+        inv.id === invoiceId ? { ...inv, status: 'sent' } : inv
+      )
+    );
+
+    toast.success('Invoice sent with PDF attached!');
+  } catch (error) {
+    toast.error('Failed to send invoice');
+    console.error(error);
+  }
+};
+
+  const handleDelete = async (invoiceId: string) => {
+  try {
+    const { error } = await supabase
+      .from('invoices')
+      .delete()
+      .eq('id', invoiceId);
+
+    if (error) throw error;
+
+    setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceId));
+    toast.success('Invoice deleted successfully');
+  } catch (error) {
+    toast.error('Failed to delete invoice');
+    console.error(error);
+  }
+};
 
   const handleDownload = async (invoiceId: string) => {
     try {
@@ -231,6 +330,8 @@ export default function Page() {
                     invoice={invoice}
                     onView={handleView}
                     onDownload={handleDownload}
+                    onDelete={handleDelete}
+                    onSend={handleSend}
                   />
                 </motion.div>
               ))}
