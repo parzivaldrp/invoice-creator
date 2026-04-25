@@ -82,7 +82,7 @@ export default function InvoiceDetailPage() {
         {/* Back button */}
         <Button
           variant="outline"
-          onClick={() => router.push('/invoices')}
+          onClick={() => router.push('/myInvoice')}
           className="mb-6"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />

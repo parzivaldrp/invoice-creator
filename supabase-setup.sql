@@ -104,8 +104,143 @@ GRANT EXECUTE ON FUNCTION public.create_user_profile TO anon, authenticated;
 -- ============================================
 
 
+-- ============================================
+-- 7. Invoices Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.invoices (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  invoice_number  TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft', 'final', 'sent', 'paid', 'overdue', 'cancelled')),
+  issue_date      DATE NOT NULL,
+  due_date        DATE,
+  from_company    TEXT,
+  from_address    TEXT,
+  from_email      TEXT,
+  from_phone      TEXT,
+  to_company      TEXT,
+  to_address      TEXT,
+  to_email        TEXT,
+  notes           TEXT,
+  tax_rate        NUMERIC(6,2) DEFAULT 0,
+  total           NUMERIC(12,2) DEFAULT 0,
+  pdf_url         TEXT,
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  UNIQUE (user_id, invoice_number)
+);
+
+CREATE INDEX IF NOT EXISTS invoices_user_id_idx       ON public.invoices (user_id);
+CREATE INDEX IF NOT EXISTS invoices_issue_date_idx    ON public.invoices (issue_date DESC);
+CREATE INDEX IF NOT EXISTS invoices_status_idx        ON public.invoices (status);
+
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+
+-- Drop old policies (idempotent reruns)
+DROP POLICY IF EXISTS "Users can view own invoices"   ON public.invoices;
+DROP POLICY IF EXISTS "Users can insert own invoices" ON public.invoices;
+DROP POLICY IF EXISTS "Users can update own invoices" ON public.invoices;
+DROP POLICY IF EXISTS "Users can delete own invoices" ON public.invoices;
+
+CREATE POLICY "Users can view own invoices"
+  ON public.invoices FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own invoices"
+  ON public.invoices FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own invoices"
+  ON public.invoices FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own invoices"
+  ON public.invoices FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Keep updated_at fresh
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = TIMEZONE('utc'::text, NOW());
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS invoices_set_updated_at ON public.invoices;
+CREATE TRIGGER invoices_set_updated_at
+  BEFORE UPDATE ON public.invoices
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- ============================================
+-- 8. Invoice Items Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id   UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+  description  TEXT,
+  quantity     NUMERIC(12,2) NOT NULL DEFAULT 1,
+  rate         NUMERIC(12,2) NOT NULL DEFAULT 0,
+  amount       NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at   TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS invoice_items_invoice_id_idx ON public.invoice_items (invoice_id);
+
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own invoice items"   ON public.invoice_items;
+DROP POLICY IF EXISTS "Users can insert own invoice items" ON public.invoice_items;
+DROP POLICY IF EXISTS "Users can update own invoice items" ON public.invoice_items;
+DROP POLICY IF EXISTS "Users can delete own invoice items" ON public.invoice_items;
+
+-- Items inherit ownership from their parent invoice
+CREATE POLICY "Users can view own invoice items"
+  ON public.invoice_items FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.invoices
+      WHERE invoices.id = invoice_items.invoice_id
+        AND invoices.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert own invoice items"
+  ON public.invoice_items FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.invoices
+      WHERE invoices.id = invoice_items.invoice_id
+        AND invoices.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update own invoice items"
+  ON public.invoice_items FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.invoices
+      WHERE invoices.id = invoice_items.invoice_id
+        AND invoices.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete own invoice items"
+  ON public.invoice_items FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.invoices
+      WHERE invoices.id = invoice_items.invoice_id
+        AND invoices.user_id = auth.uid()
+    )
+  );
+
+-- 9. Grants for invoices + invoice_items
+GRANT ALL ON public.invoices      TO authenticated;
+GRANT ALL ON public.invoice_items TO authenticated;
 
 
 

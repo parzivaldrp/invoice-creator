@@ -11,8 +11,8 @@ import { toast } from 'react-toastify';
 import { supabase } from "@/lib/supabaseClient";
 import { useInvoiceActions } from "@/lib/useInvoiceActions";
 import { useRouter, useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
+import { validateInvoice } from '@/lib/validateInvoice';
 
 
 
@@ -40,18 +40,6 @@ interface InvoiceData {
   notes: string;
   taxRate: number;
 }
-const PDFDownloadLink = dynamic(
-  () => import('@react-pdf/renderer').then(mod => mod.PDFDownloadLink),
-  { ssr: false }
-);
-
-const InvoicePDF = dynamic(  // ← ADD THIS
-  () => import('./InvoicePDF'),
-  { ssr: false }
-);
-
-
-
 function InvoiceGeneratorContent() {
   const [invoiceData, setInvoiceData] = useState<InvoiceData>({
     invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
@@ -75,7 +63,7 @@ function InvoiceGeneratorContent() {
   const editId = searchParams.get('id'); // if id exists, we're editing an existing invoice
   const router = useRouter();
   const { saveInvoiceToDB } = useInvoiceActions(invoiceData, editId);
-  const [isClient, setIsClient] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
 
   useEffect(() => {
@@ -97,53 +85,91 @@ function InvoiceGeneratorContent() {
   // If editId exists, fetch the invoice data and pre-fill the form
 
   useEffect(() => {
-  if (!editId) return; // no id = new invoice, skip
+    if (!editId) return; // no id = new invoice, skip
 
-  const fetchInvoiceForEdit = async () => {
-    // Fetch the invoice
-    const { data: invoice, error } = await supabase
-      .from('invoices')
-      .select('*')
-      .eq('id', editId)
-      .single();
+    const fetchInvoiceForEdit = async () => {
+      // Fetch the invoice
+      const { data: invoice, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', editId)
+        .single();
 
-    if (error) {
-      toast.error('Failed to load invoice');
-      return;
+      if (error) {
+        toast.error('Failed to load invoice');
+        return;
+      }
+
+      // Fetch the items
+      const { data: items } = await supabase
+        .from('invoice_items')
+        .select('*')
+        .eq('invoice_id', editId);
+
+      // Pre-fill the form with existing data
+      setInvoiceData({
+        invoiceNumber: invoice.invoice_number,
+        issueDate: invoice.issue_date,
+        dueDate: invoice.due_date,
+        fromCompany: invoice.from_company || '',
+        fromAddress: invoice.from_address || '',
+        fromEmail: invoice.from_email || '',
+        fromPhone: invoice.from_phone || '',
+        toCompany: invoice.to_company || '',
+        toAddress: invoice.to_address || '',
+        toEmail: invoice.to_email || '',
+        notes: invoice.notes || '',
+        taxRate: invoice.tax_rate || 0,
+        items: items?.map((item) => ({
+          id: item.id,
+          description: item.description,
+          quantity: item.quantity,
+          rate: item.rate,
+          amount: item.amount,
+        })) || [],
+      });
+    };
+
+    fetchInvoiceForEdit();
+  }, [editId]);
+
+
+  const handleGeneratePDF = async () => {
+    if (!validateInvoice(invoiceData, 'draft')) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      // Dynamic imports keep @react-pdf/renderer out of the SSR bundle,
+      // and avoid the buggy PDFDownloadLink render-prop pattern under Turbopack.
+      const [{ pdf }, { default: InvoicePDF }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('./InvoicePDF'),
+      ]);
+
+      const blob = await pdf(
+        <InvoicePDF
+          invoiceData={invoiceData}
+          subtotal={subtotal}
+          taxAmount={taxAmount}
+          total={total}
+        />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice-${invoiceData.invoiceNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setIsGeneratingPdf(false);
     }
-
-    // Fetch the items
-    const { data: items } = await supabase
-      .from('invoice_items')
-      .select('*')
-      .eq('invoice_id', editId);
-
-    // Pre-fill the form with existing data
-    setInvoiceData({
-      invoiceNumber: invoice.invoice_number,
-      issueDate: invoice.issue_date,
-      dueDate: invoice.due_date,
-      fromCompany: invoice.from_company || '',
-      fromAddress: invoice.from_address || '',
-      fromEmail: invoice.from_email || '',
-      fromPhone: invoice.from_phone || '',
-      toCompany: invoice.to_company || '',
-      toAddress: invoice.to_address || '',
-      toEmail: invoice.to_email || '',
-      notes: invoice.notes || '',
-      taxRate: invoice.tax_rate || 0,
-      items: items?.map((item) => ({
-        id: item.id,
-        description: item.description,
-        quantity: item.quantity,
-        rate: item.rate,
-        amount: item.amount,
-      })) || [],
-    });
   };
-
-  fetchInvoiceForEdit();
-}, [editId]);
 
   const updateInvoiceData = (field: keyof InvoiceData, value: string | number | InvoiceItem[]) => {
     setInvoiceData((prev) => ({ ...prev, [field]: value }));
@@ -510,7 +536,7 @@ function InvoiceGeneratorContent() {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
-                  onClick={() => saveInvoiceToDB('draft')}
+                  onClick={() => { if (validateInvoice(invoiceData, 'draft')) saveInvoiceToDB('draft') }}
                   size="lg"
                   variant="outline"
                   className="flex-1"
@@ -519,42 +545,24 @@ function InvoiceGeneratorContent() {
                   Save Invoice
                 </Button>
                 <Button
-                  onClick={async () => { await saveInvoiceToDB('final');
+                  onClick={async () => {
+                    if (!validateInvoice(invoiceData, 'final')) return;
+                    await saveInvoiceToDB('final');
                     router.push('/myInvoice');
-
                   }}
-                  size="lg"
-                  variant="outline"
-                  className="flex-1"
                 >
-                  <Save className="h-5 w-5 mr-2" />
-                  final
+                  Save as Final
                 </Button>
-                {isClient && (
-                <PDFDownloadLink
-                  document={
-                    <InvoicePDF
-                      invoiceData={invoiceData}
-                      subtotal={subtotal}
-                      taxAmount={taxAmount}
-                      total={total}
-                    />
-                  }
-                  fileName={`invoice-${invoiceData.invoiceNumber}.pdf`}
+                <Button
+                  type="button"
+                  onClick={handleGeneratePDF}
+                  size="lg"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={isGeneratingPdf}
                 >
-                  {({ loading }) => (
-                    <Button
-                      size="lg"
-                      className="flex-1 bg-blue-600 hover:bg-blue-700"
-                      disabled={loading}
-
-                    >
-                      <Download className="h-5 w-5 mr-2" />
-                      {loading ? 'Generating PDF...' : 'Generate PDF'}
-                    </Button>
-                  )}
-                </PDFDownloadLink>
-                )}
+                  <Download className="h-5 w-5 mr-2" />
+                  {isGeneratingPdf ? 'Generating PDF...' : 'Generate PDF'}
+                </Button>
               </div>
             </div>
 
@@ -655,7 +663,7 @@ function InvoiceGeneratorContent() {
                   </div>
                   <div className="flex justify-between text-lg font-bold border-t pt-2">
                     <span>Total:</span>
-                    
+
                     <span>${total.toFixed(2)}</span>
                   </div>
                 </div>

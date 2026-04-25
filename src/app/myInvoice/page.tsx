@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Plus, Filter, FileText } from "lucide-react";
+import { Search, Plus, Filter, FileText, ArrowUpDown, X } from "lucide-react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
@@ -170,17 +171,72 @@ const handleSend = async (invoiceId: string) => {
   const handleDownload = async (invoiceId: string) => {
     try {
       const invoice = invoices.find((inv) => inv.id === invoiceId);
-      if (invoice?.pdf_url) {
-        const link = document.createElement("a");
-        link.href = invoice.pdf_url;
-        link.download = `invoice-${invoice.invoice_number}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success("PDF download started");
-      } else {
-        toast.error("PDF not available for this invoice");
+      if (!invoice) {
+        toast.error("Invoice not found");
+        return;
       }
+
+      // Fetch line items
+      const { data: items, error: itemsError } = await supabase
+        .from("invoice_items")
+        .select("*")
+        .eq("invoice_id", invoiceId);
+      if (itemsError) throw itemsError;
+
+      const invoiceData = {
+        invoiceNumber: String(invoice.invoice_number),
+        issueDate: String(invoice.issue_date),
+        dueDate: invoice.due_date ? String(invoice.due_date) : "",
+        fromCompany: invoice.from_company || "",
+        fromAddress: invoice.from_address || "",
+        fromEmail: invoice.from_email || "",
+        fromPhone: invoice.from_phone || "",
+        toCompany: invoice.to_company || "",
+        toAddress: invoice.to_address || "",
+        toEmail: invoice.to_email || "",
+        notes: invoice.notes || "",
+        taxRate: invoice.tax_rate || 0,
+        items: (items || []).map((i) => ({
+          id: i.id,
+          description: i.description ?? "",
+          quantity: Number(i.quantity) || 0,
+          rate: Number(i.rate) || 0,
+          amount: Number(i.amount) || 0,
+        })),
+      };
+
+      const subtotal = invoiceData.items.reduce(
+        (sum, item) => sum + item.amount,
+        0
+      );
+      const taxAmount = subtotal * (invoiceData.taxRate / 100);
+      const total = subtotal + taxAmount;
+
+      // Dynamic imports so @react-pdf/renderer only loads on the client
+      const [{ pdf }, { default: InvoicePDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../invoice_generator/InvoicePDF"),
+      ]);
+
+      const blob = await pdf(
+        <InvoicePDF
+          invoiceData={invoiceData}
+          subtotal={subtotal}
+          taxAmount={taxAmount}
+          total={total}
+        />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `invoice-${invoice.invoice_number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success("PDF download started");
     } catch (error) {
       toast.error("Failed to download PDF");
       console.error(error);
@@ -188,15 +244,14 @@ const handleSend = async (invoiceId: string) => {
   };
 
   const filteredInvoices = invoices.filter((invoice) => {
+    const q = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      invoice.invoice_number
-        ?.toString()
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      invoice.from_company
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      invoice.to_company?.toLowerCase().includes(searchTerm.toLowerCase());
+      !q ||
+      invoice.invoice_number?.toString().toLowerCase().includes(q) ||
+      invoice.from_company?.toLowerCase().includes(q) ||
+      invoice.to_company?.toLowerCase().includes(q) ||
+      invoice.to_email?.toLowerCase().includes(q) ||
+      invoice.notes?.toLowerCase().includes(q);
 
     const matchesStatus =
       statusFilter === "all" || invoice.status === statusFilter;
@@ -243,10 +298,12 @@ const handleSend = async (invoiceId: string) => {
               Track and manage your business invoices efficiently
             </p>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200">
-            <Plus className="w-4 h-4 mr-2" />
-            Create Invoice
-          </Button>
+          <Link href="/invoice_generator">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Invoice
+            </Button>
+          </Link>
         </div>
 
         {/* Stats Overview */}
@@ -254,45 +311,107 @@ const handleSend = async (invoiceId: string) => {
 
         {/* Filters and Search */}
         <Card className="mb-6 shadow-sm border-0">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              {/* Search — full width on mobile, ~half on desktop */}
+              <div className="md:col-span-6 lg:col-span-7 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                 <Input
-                  placeholder="Search by invoice number, company..."
+                  placeholder="Search by invoice #, company, client email, or notes..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                  className="pl-10 pr-10 h-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    aria-label="Clear search"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              <div className="flex gap-3">
+
+              {/* Status filter */}
+              <div className="md:col-span-3 lg:col-span-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40">
-                    <Filter className="w-4 h-4 mr-2" />
+                  <SelectTrigger className="w-full h-10">
+                    <Filter className="w-4 h-4 mr-2 text-slate-500" />
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="all">All statuses</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="final">Final</SelectItem>
                     <SelectItem value="sent">Sent</SelectItem>
                     <SelectItem value="paid">Paid</SelectItem>
                     <SelectItem value="overdue">Overdue</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Sort by */}
+              <div className="md:col-span-3">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-full h-10">
+                    <ArrowUpDown className="w-4 h-4 mr-2 text-slate-500" />
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="issue_date">Issue Date</SelectItem>
-                    <SelectItem value="due_date">Due Date</SelectItem>
-                    <SelectItem value="amount">Amount</SelectItem>
-                    <SelectItem value="invoice_number">Invoice #</SelectItem>
+                    <SelectItem value="issue_date">Sort: Issue date</SelectItem>
+                    <SelectItem value="due_date">Sort: Due date</SelectItem>
+                    <SelectItem value="total">Sort: Amount</SelectItem>
+                    <SelectItem value="invoice_number">Sort: Invoice #</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
+            {/* Active filter chips */}
+            {(searchTerm || statusFilter !== "all") && (
+              <div className="flex flex-wrap items-center gap-2 mt-4 text-xs text-slate-600">
+                <span className="font-medium">Active:</span>
+                {searchTerm && (
+                  <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-1">
+                    &ldquo;{searchTerm}&rdquo;
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm("")}
+                      aria-label="Clear search"
+                      className="hover:text-blue-900"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {statusFilter !== "all" && (
+                  <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2.5 py-1">
+                    Status: {statusFilter}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter("all")}
+                      aria-label="Clear status filter"
+                      className="hover:text-purple-900"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setStatusFilter("all");
+                  }}
+                  className="text-slate-500 hover:text-slate-700 underline ml-1"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -309,10 +428,12 @@ const handleSend = async (invoiceId: string) => {
                   ? "Try adjusting your search or filters"
                   : "Create your first invoice to get started"}
               </p>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Invoice
-              </Button>
+              <Link href="/invoice_generator">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Invoice
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         ) : (

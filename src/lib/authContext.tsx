@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 
@@ -8,7 +8,8 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  profile: { full_name?: string } | null; 
+  profile: { full_name?: string } | null;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -21,7 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<{full_name?: string } | null>(null);
 
 
-const fetchProfiles = async (userId: string) => {
+const fetchProfiles = useCallback(async (userId: string) => {
   const { data, error } = await supabase
   .from('profiles')
   .select('*')
@@ -34,7 +35,13 @@ const fetchProfiles = async (userId: string) => {
     setProfile(null);
   }
 
-};
+}, []);
+
+const refreshProfile = useCallback(async () => {
+  if (user?.id) {
+    await fetchProfiles(user.id);
+  }
+}, [user, fetchProfiles]);
 
 
 
@@ -78,6 +85,7 @@ const fetchProfiles = async (userId: string) => {
     session,
     loading,
     profile,
+    refreshProfile,
     signOut,
   };
 

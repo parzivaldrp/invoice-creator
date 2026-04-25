@@ -173,7 +173,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ invoiceData, subtotal, taxAmoun
         </View>
         {invoiceData.items.map((item: InvoiceItem) => (
           <View style={styles.tableRow} key={item.id}>
-            <Text style={[styles.tableCell, { flex: 3 }]}>{item.description || 'Service description'}</Text>
+            <Text style={[styles.tableCell, { flex: 3 }]}>{item.description ||   'Service description'}</Text>
             <Text style={styles.tableCell}>{item.quantity}</Text>
             <Text style={styles.tableCell}>${item.rate.toFixed(2)}</Text>
             <Text style={styles.tableCell}>${item.amount.toFixed(2)}</Text>

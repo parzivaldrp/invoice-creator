@@ -24,9 +24,6 @@ import { toast } from 'react-toastify';
 function validateEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
-function validatePassword(password: string) {
-  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{6,}$/.test(password);
-}
 
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
@@ -54,8 +51,18 @@ export default function Signup() {
     setIsLoading(true);
 
     // Client-side validation
-    if (!formData.name || formData.name.trim().length < 2) {
+    if (!formData.name.trim()) {
+      toast.warning("Please enter your name.");
+      setIsLoading(false);
+      return;
+    }
+    if (formData.name.trim().length < 2) {
       toast.warning("Name must be at least 2 characters.");
+      setIsLoading(false);
+      return;
+    }
+    if (!formData.email.trim()) {
+      toast.warning("Please enter your email.");
       setIsLoading(false);
       return;
     }
@@ -64,8 +71,18 @@ export default function Signup() {
       setIsLoading(false);
       return;
     }
-    if (!validatePassword(formData.password)) {
-      toast.warning("Password must be at least 6 characters, include uppercase, lowercase, number, and special character.");
+    if (!formData.password) {
+      toast.warning("Please enter a password.");
+      setIsLoading(false);
+      return;
+    }
+    if (formData.password.length < 7) {
+      toast.warning("Password must be at least 7 characters.");
+      setIsLoading(false);
+      return;
+    }
+    if (!formData.confirmPassword) {
+      toast.warning("Please confirm your password.");
       setIsLoading(false);
       return;
     }

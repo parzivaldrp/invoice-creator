@@ -36,12 +36,20 @@ export default function Login() {
     e.preventDefault();
 
     // Client-side validation
+    if (!email.trim()) {
+      toast.warning("Please enter your email.");
+      return;
+    }
     if (!validateEmail(email)) {
       toast.warning("Please enter a valid email address.");
       return;
     }
     if (!password) {
       toast.warning("Please enter your password.");
+      return;
+    }
+    if (password.length < 7) {
+      toast.warning("Password must be at least 7 characters.");
       return;
     }
 
