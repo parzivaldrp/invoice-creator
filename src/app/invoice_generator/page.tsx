@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Save, Plus, Trash2 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import InvoiceUpload, { type ExtractedInvoiceData } from "@/components/invoices/InvoiceUpload";
 import { toast } from 'react-toastify';
 //import { PDFDownloadLink } from '@react-pdf/renderer';
 import { supabase } from "@/lib/supabaseClient";
@@ -212,6 +213,37 @@ function InvoiceGeneratorContent() {
     }));
   };
 
+  // Merge fields extracted from a photo/PDF into the form.
+  // Only overwrites fields that Textract actually returned, so users
+  // never lose typed-in data.
+  const handleExtracted = (data: ExtractedInvoiceData) => {
+    setInvoiceData((prev) => {
+      const next: InvoiceData = { ...prev };
+      if (data.invoiceNumber) next.invoiceNumber = data.invoiceNumber;
+      if (data.issueDate) next.issueDate = data.issueDate;
+      if (data.dueDate) next.dueDate = data.dueDate;
+      if (data.fromCompany) next.fromCompany = data.fromCompany;
+      if (data.fromAddress) next.fromAddress = data.fromAddress;
+      if (data.fromEmail) next.fromEmail = data.fromEmail;
+      if (data.fromPhone) next.fromPhone = data.fromPhone;
+      if (data.toCompany) next.toCompany = data.toCompany;
+      if (data.toAddress) next.toAddress = data.toAddress;
+      if (data.toEmail) next.toEmail = data.toEmail;
+      if (typeof data.taxRate === 'number') next.taxRate = data.taxRate;
+      if (data.items && data.items.length > 0) {
+        next.items = data.items.map((it) => ({
+          id: it.id,
+          description: it.description ?? '',
+          quantity: Number.isFinite(it.quantity) ? it.quantity : 1,
+          rate: Number.isFinite(it.rate) ? it.rate : 0,
+          amount: Number.isFinite(it.amount) ? it.amount : 0,
+        }));
+      }
+      return next;
+    });
+    toast.success('Invoice fields filled from photo. Review and save.');
+  };
+
   const subtotal = invoiceData.items.reduce(
     (sum, item) => sum + item.amount,
     0,
@@ -237,6 +269,9 @@ function InvoiceGeneratorContent() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Form Section */}
             <div className="space-y-6">
+              {/* AI Photo → Invoice Upload */}
+              <InvoiceUpload onExtracted={handleExtracted} />
+
               {/* Invoice Header */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">

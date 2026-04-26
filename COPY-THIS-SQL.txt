@@ -45,13 +45,5 @@ CREATE POLICY "Users can update own profile"
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON public.profiles TO anon, authenticated;
 
-
-
-
-
-
-
-
-
-
-
+-- Note: do NOT paste secrets (AWS keys, Supabase service keys, passwords)
+-- into this file. Put them in .env.local only — that's gitignored.
