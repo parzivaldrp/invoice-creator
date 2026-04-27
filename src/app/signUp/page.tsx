@@ -173,7 +173,16 @@ export default function Signup() {
       }
       
       toast.success("Sign up successful! Check your email for confirmation.");
-      router.push('/login');
+      // Propagate ?next= so login can complete the round-trip after sign-in.
+      const rawNext =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('next')
+          : null;
+      const safeNextPath =
+        rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
+      router.push(
+        safeNextPath ? `/login?next=${encodeURIComponent(safeNextPath)}` : '/login'
+      );
     } else {
       toast.error("Sign up failed: No user was created.");
     }

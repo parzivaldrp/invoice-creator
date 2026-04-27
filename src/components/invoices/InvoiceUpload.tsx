@@ -13,7 +13,6 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabaseClient';
 
 // --- Types -----------------------------------------------------------------
 
@@ -108,23 +107,15 @@ export default function InvoiceUpload({ onExtracted, className }: InvoiceUploadP
       setState('uploading');
 
       try {
-        // Pass the user's Supabase access token so the server can verify auth.
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          setErrorMsg('Your session expired. Please sign in again.');
-          setState('error');
-          return;
-        }
-
+        // The Supabase session cookie is sent automatically with same-
+        // origin fetches; the server route reads it via @/lib/supabase/server.
         const formData = new FormData();
         formData.append('file', file);
 
         const res = await fetch('/api/extract-invoice', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${session.access_token}` },
           body: formData,
+          credentials: 'same-origin',
         });
 
         const json = await res.json().catch(() => ({}));

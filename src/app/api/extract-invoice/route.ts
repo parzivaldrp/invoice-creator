@@ -4,7 +4,7 @@ import {
   AnalyzeExpenseCommand,
   type ExpenseField,
 } from '@aws-sdk/client-textract';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 
 // Run on Node (Textract SDK uses Node-only APIs); allow up to 30s.
 export const runtime = 'nodejs';
@@ -21,9 +21,6 @@ const ACCEPTED = new Set([
 ]);
 // How many extractions a single user is allowed per rolling 24h window.
 const DAILY_USER_LIMIT = 25;
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 const textract = new TextractClient({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -56,14 +53,6 @@ function parseDate(s: string | undefined): string | undefined {
   return d.toISOString().split('T')[0];
 }
 
-/** Build a Supabase client scoped to this user's JWT so RLS applies. */
-function userScopedClient(accessToken: string) {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 /** Safe error logging: name + message only, never the request body. */
 function logServerError(label: string, err: unknown) {
   if (err instanceof Error) {
@@ -83,12 +72,6 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return NextResponse.json(
-      { error: 'Supabase not configured on the server.' },
-      { status: 500 }
-    );
-  }
 
   // 2. Global kill switch (circuit breaker for runaway costs) --------------
   if (process.env.EXTRACT_DISABLED === 'true') {
@@ -98,23 +81,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3. Authenticate the caller --------------------------------------------
-  const authHeader = req.headers.get('authorization') || '';
-  const token = authHeader.toLowerCase().startsWith('bearer ')
-    ? authHeader.slice(7).trim()
-    : '';
-  if (!token) {
-    return NextResponse.json(
-      { error: 'You must be signed in to use photo extraction.' },
-      { status: 401 }
-    );
-  }
-
-  const supabase = userScopedClient(token);
-  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+  // 3. Authenticate the caller via cookie session -------------------------
+  const supabase = await createClient();
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData?.user) {
     return NextResponse.json(
-      { error: 'Your session has expired. Please sign in again.' },
+      { error: 'You must be signed in to use photo extraction.' },
       { status: 401 }
     );
   }

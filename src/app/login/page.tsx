@@ -70,10 +70,27 @@ export default function Login() {
       }
     } else {
       toast.success("Logged in successfully!");
-      router.push('/');
+      router.push(safeNext() ?? '/');
     }
   };
-;
+
+  /**
+   * Read ?next= from the URL and only honor it if it's a same-origin
+   * relative path. Prevents open-redirect attacks via crafted links.
+   */
+  function safeNext(): string | null {
+    if (typeof window === 'undefined') return null;
+    const raw = new URLSearchParams(window.location.search).get('next');
+    if (!raw) return null;
+    try {
+      const decoded = decodeURIComponent(raw);
+      if (decoded.startsWith('/') && !decoded.startsWith('//')) return decoded;
+    } catch {
+      // ignore malformed
+    }
+    return null;
+  }
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 px-4 sm:px-6 lg:px-8">

@@ -1,8 +1,26 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
+import { useAuth } from '@/lib/authContext';
 
-const tiers = [
+type Tier = {
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  features: string[];
+  cta: string;
+  /** Where to send a logged-in user */
+  authedHref: string;
+  /** Where to send a logged-out user. `next` will be appended automatically. */
+  guestHref: string;
+  highlight: boolean;
+};
+
+const tiers: Tier[] = [
   {
     name: 'Free',
     price: '$0',
@@ -16,7 +34,8 @@ const tiers = [
       'Email support',
     ],
     cta: 'Get started',
-    href: '/signUp',
+    authedHref: '/dashboard',
+    guestHref: '/signUp',
     highlight: false,
   },
   {
@@ -33,7 +52,8 @@ const tiers = [
       'Export to CSV',
     ],
     cta: 'Start free trial',
-    href: '/signUp',
+    authedHref: '/billing?plan=pro',
+    guestHref: '/signUp',
     highlight: true,
   },
   {
@@ -50,12 +70,31 @@ const tiers = [
       'Dedicated support',
     ],
     cta: 'Contact sales',
-    href: '/contactUs',
+    authedHref: '/contactUs',
+    guestHref: '/contactUs',
     highlight: false,
   },
 ];
 
 export default function PricingPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  /**
+   * Resolve the destination at click time so the value is always fresh
+   * with the latest auth state (avoids stale Link hrefs after sign-in).
+   */
+  const handleClick = (tier: Tier) => {
+    if (loading) return; // still resolving session — ignore the click
+    if (user) {
+      router.push(tier.authedHref);
+    } else {
+      // Send to sign-up but remember where they wanted to go.
+      const next = encodeURIComponent(tier.authedHref);
+      router.push(`${tier.guestHref}?next=${next}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -98,23 +137,27 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href={tier.href} className="mt-8 block">
-                <Button
-                  className={`w-full h-11 ${
-                    tier.highlight
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
-                      : 'bg-gray-900 hover:bg-gray-800 text-white'
-                  }`}
-                >
-                  {tier.cta}
-                </Button>
-              </Link>
+              <Button
+                onClick={() => handleClick(tier)}
+                disabled={loading}
+                aria-busy={loading}
+                className={`mt-8 w-full h-11 ${
+                  tier.highlight
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
+                    : 'bg-gray-900 hover:bg-gray-800 text-white'
+                }`}
+              >
+                {loading ? 'Loading…' : tier.cta}
+              </Button>
             </div>
           ))}
         </div>
 
         <p className="mt-10 text-center text-sm text-gray-500">
-          All plans include SSL, automatic backups, and a 14-day money-back guarantee.
+          All plans include SSL, automatic backups, and a 14-day money-back guarantee.{' '}
+          <Link href="/contactUs" className="underline hover:text-gray-700">
+            Talk to us
+          </Link>
         </p>
       </div>
     </div>
