@@ -313,9 +313,12 @@ const handleSend = async (invoiceId: string) => {
         <Card className="mb-6 shadow-sm border-0">
           <CardContent className="p-4 sm:p-6">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-              {/* Search — full width on mobile, ~half on desktop */}
-              <div className="md:col-span-6 lg:col-span-7 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+              {/* Search — full width on mobile, ~half on desktop.
+                  `block` + `w-full` on the relative wrapper guarantee the
+                  absolute-positioned search icon stays anchored to the
+                  input box at every breakpoint. */}
+              <div className="md:col-span-6 lg:col-span-7 relative block w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none z-10" />
                 <Input
                   placeholder="Search by invoice #, company, client email, or notes..."
                   value={searchTerm}
@@ -327,18 +330,20 @@ const handleSend = async (invoiceId: string) => {
                     type="button"
                     onClick={() => setSearchTerm("")}
                     aria-label="Clear search"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 z-10"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 )}
               </div>
 
-              {/* Status filter */}
+              {/* Status filter — `mr-2` removed from icon; SelectTrigger
+                  now wraps children in a flex container with gap-2 so
+                  spacing comes from there, not from per-icon margins. */}
               <div className="md:col-span-3 lg:col-span-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-full h-10">
-                    <Filter className="w-4 h-4 mr-2 text-slate-500" />
+                    <Filter className="w-4 h-4 shrink-0 text-slate-500" />
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -357,7 +362,7 @@ const handleSend = async (invoiceId: string) => {
               <div className="md:col-span-3">
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger className="w-full h-10">
-                    <ArrowUpDown className="w-4 h-4 mr-2 text-slate-500" />
+                    <ArrowUpDown className="w-4 h-4 shrink-0 text-slate-500" />
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>

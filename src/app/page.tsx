@@ -20,26 +20,17 @@ export default function Index() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // Redirect signed-in users to the dashboard once auth resolves.
+  // Note: we DO NOT block initial render on `loading` — the marketing
+  // page is public, so making first-time visitors wait on a Supabase
+  // round-trip just to see the hero is the wrong tradeoff. Authenticated
+  // users will see the hero for a fraction of a second before redirect,
+  // which is far better than every visitor staring at a spinner.
   useEffect(() => {
     if (!loading && user) {
       router.push('/dashboard');
     }
   }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (user) {
-    return null; // Will redirect to dashboard
-  }
 
   const features = [
     {
