@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Personal docs — keep out of repo
 *.pdf
+
+# Personal docs — keep out of repo
+*.pdf
