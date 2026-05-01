@@ -16,9 +16,23 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/authContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import StatsCards from "../../components/invoices/StatsCards/page";
 import InvoiceCard from "../../components/invoices/InvoiceCards/page";
 import { useRouter } from 'next/navigation';
+
+// Shape of a single invoice_items row in the database — used to type
+// the line items returned from Supabase so we can stop using `any` in
+// reducers further down.
+interface InvoiceItemRow {
+  id: string;
+  invoice_id: string;
+  description: string | null;
+  quantity: number | null;
+  rate: number | null;
+  amount: number;
+}
 
 export interface InvoiceType {
   id: string;
@@ -42,7 +56,8 @@ export interface InvoiceType {
   total?: number;
 }
 
-export default function Page() {
+function MyInvoicesPage() {
+  const { user } = useAuth();
   const [invoices, setInvoices] = useState<InvoiceType[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -51,11 +66,20 @@ export default function Page() {
   const router = useRouter();
 
   const loadInvoices = useCallback(async () => {
+    // No user yet (auth still resolving) → don't query.
+    // ProtectedRoute will keep the spinner up until user is set.
+    if (!user) return;
+
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('invoices')
         .select('*')
+        // Defensive depth: RLS already scopes rows to the current user,
+        // but we filter explicitly in app code too. If a policy ever
+        // gets misconfigured, this query still returns only the caller's
+        // own invoices.
+        .eq('user_id', user.id)
         .order(sortBy, { ascending: false })
         .limit(100);
 
@@ -67,7 +91,7 @@ export default function Page() {
       console.error(error);
     }
     setIsLoading(false);
-  }, [sortBy]);
+  }, [sortBy, user]);
 
   useEffect(() => {
     loadInvoices();
@@ -94,6 +118,8 @@ const handleSend = async (invoiceId: string) => {
       .select('*')
       .eq('invoice_id', invoiceId);
 
+    const typedItems = (items ?? []) as InvoiceItemRow[];
+
     // Build invoiceData object for PDF generation
     const invoiceData = {
       invoiceNumber: invoice.invoice_number,
@@ -108,10 +134,13 @@ const handleSend = async (invoiceId: string) => {
       toEmail: invoice.to_email || '',
       notes: invoice.notes || '',
       taxRate: invoice.tax_rate || 0,
-      items: items || [],
+      items: typedItems,
     };
 
-    const subtotal = invoiceData.items.reduce((sum: number, item: any) => sum + item.amount, 0);
+    const subtotal = invoiceData.items.reduce(
+      (sum, item) => sum + (item.amount ?? 0),
+      0
+    );
     const taxAmount = subtotal * (invoiceData.taxRate / 100);
     const total = subtotal + taxAmount;
 
@@ -476,5 +505,20 @@ const handleSend = async (invoiceId: string) => {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Default export wraps the page in <ProtectedRoute> so unauthenticated
+ * users get a clean redirect-to-login while the session resolves,
+ * instead of the bare skeleton flashing first. The middleware already
+ * gates this path at the edge — this is the client-side fallback for
+ * slow networks and the consistent pattern across all protected pages.
+ */
+export default function Page() {
+  return (
+    <ProtectedRoute>
+      <MyInvoicesPage />
+    </ProtectedRoute>
   );
 }

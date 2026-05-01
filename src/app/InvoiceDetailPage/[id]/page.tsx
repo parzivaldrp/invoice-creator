@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/lib/authContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
@@ -32,20 +34,28 @@ interface Invoice {
   total: number;
 }
 
-export default function InvoiceDetailPage() {
+function InvoiceDetailView() {
   const { id } = useParams();
+  const { user } = useAuth();
   const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for auth to resolve before querying. ProtectedRoute keeps
+    // the spinner up until `user` is set.
+    if (!user) return;
+
     const fetchInvoice = async () => {
-      // Fetch invoice
+      // Fetch invoice — explicit user_id filter so we can never return
+      // someone else's invoice even if RLS is misconfigured. Pairs with
+      // the policy on the `invoices` table.
       const { data: invoiceData, error: invoiceError } = await supabase
         .from('invoices')
         .select('*')
         .eq('id', id)
+        .eq('user_id', user.id)
         .single();
 
       if (invoiceError) {
@@ -68,7 +78,7 @@ export default function InvoiceDetailPage() {
     };
 
     fetchInvoice();
-  }, [id]);
+  }, [id, user]);
 
   if (isLoading) return <div className="p-8">Loading...</div>;
   if (!invoice) return <div className="p-8">Invoice not found.</div>;
@@ -172,5 +182,19 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Default export wraps the view in <ProtectedRoute> so the page never
+ * tries to render with a null user. Middleware already gates this path
+ * at the edge — this is the client-side belt-and-braces consistent
+ * with dashboard/billing/invoice_generator/myInvoice.
+ */
+export default function InvoiceDetailPage() {
+  return (
+    <ProtectedRoute>
+      <InvoiceDetailView />
+    </ProtectedRoute>
   );
 }
