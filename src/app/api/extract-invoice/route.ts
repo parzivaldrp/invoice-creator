@@ -92,6 +92,42 @@ export async function POST(req: NextRequest) {
   }
   const userId = userData.user.id;
 
+  // 3b. Plan gate — AI extraction is a Pro feature ------------------------
+  // We check on the server (not just in the UI) so a determined free user
+  // can't just call the endpoint directly. Trialing counts as Pro.
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('subscription_tier, subscription_status')
+    .eq('id', userId)
+    .single();
+
+  if (profileErr) {
+    logServerError('profile-read', profileErr);
+    return NextResponse.json(
+      { error: 'Could not verify your plan. Please try again.' },
+      { status: 503 }
+    );
+  }
+
+  const isPaidTier =
+    profile.subscription_tier === 'pro' ||
+    profile.subscription_tier === 'business';
+  const isActiveStatus =
+    profile.subscription_status === 'active' ||
+    profile.subscription_status === 'trialing';
+
+  if (!isPaidTier || !isActiveStatus) {
+    return NextResponse.json(
+      {
+        error:
+          'AI invoice extraction is a Pro feature. Upgrade to unlock it.',
+        code: 'upgrade_required',
+        upgradeUrl: '/billing?plan=pro',
+      },
+      { status: 402 } // Payment Required
+    );
+  }
+
   // 4. Per-user rate limit (rolling 24h) ----------------------------------
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { count, error: countErr } = await supabase

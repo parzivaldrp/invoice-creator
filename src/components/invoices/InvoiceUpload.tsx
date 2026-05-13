@@ -1,18 +1,21 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertCircle,
   CheckCircle2,
   FileImage,
   Loader2,
+  Lock,
   RefreshCw,
   Sparkles,
   Upload,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/authContext';
 
 // --- Types -----------------------------------------------------------------
 
@@ -79,11 +82,70 @@ function validateFile(file: File): string | null {
 // --- Component -------------------------------------------------------------
 
 export default function InvoiceUpload({ onExtracted, className }: InvoiceUploadProps) {
+  const { isPro, loading: authLoading } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<UploadState>('idle');
   const [isDragging, setIsDragging] = useState(false);
   const [fileMeta, setFileMeta] = useState<{ name: string; size: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Free-tier gate: render an upsell card instead of the drop zone.
+  // Server still gates the API independently — this is a UX nicety, not
+  // a security boundary.
+  if (!authLoading && !isPro) {
+    return (
+      <div className={className}>
+        <div
+          className="relative overflow-hidden rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-1 shadow-sm"
+          aria-label="AI invoice extraction (Pro feature)"
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-gradient-to-br from-blue-300/40 to-purple-300/40 blur-3xl"
+          />
+          <div className="relative rounded-xl bg-white/70 backdrop-blur-sm p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 shadow-md">
+                <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                    Auto-fill from a photo
+                  </h3>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
+                    <Lock className="h-2.5 w-2.5" aria-hidden="true" />
+                    Pro
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                  Drop an invoice and we&apos;ll fill the form for you with
+                  AWS Textract. Available on the Pro plan — start a 7-day
+                  free trial, cancel anytime.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link href="/billing?plan=pro">
+                    <Button
+                      size="sm"
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                      Upgrade to Pro
+                    </Button>
+                  </Link>
+                  <Link href="/pricing">
+                    <Button size="sm" variant="outline">
+                      See plans
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const reset = useCallback(() => {
     setState('idle');
@@ -121,6 +183,11 @@ export default function InvoiceUpload({ onExtracted, className }: InvoiceUploadP
         const json = await res.json().catch(() => ({}));
 
         if (!res.ok) {
+          // 402 = trial ended / subscription not active. Send them to billing.
+          if (res.status === 402 || json?.code === 'upgrade_required') {
+            window.location.href = (json?.upgradeUrl as string) || '/billing?plan=pro';
+            return;
+          }
           setErrorMsg(json?.error || 'Could not read the invoice. Try a sharper photo.');
           setState('error');
           return;

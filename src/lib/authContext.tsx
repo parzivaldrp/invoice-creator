@@ -1,14 +1,39 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
+
+/**
+ * Shape of the row we read from `profiles`. Keep this as a superset of
+ * the columns we actually use in the UI — adding a new column to the
+ * select() below should be the only change needed when extending it.
+ */
+export interface Profile {
+  full_name?: string;
+  subscription_tier?: 'free' | 'pro' | 'business';
+  subscription_status?:
+    | 'trialing'
+    | 'active'
+    | 'past_due'
+    | 'canceled'
+    | 'unpaid'
+    | 'incomplete'
+    | 'incomplete_expired'
+    | 'paused'
+    | string
+    | null;
+  current_period_end?: string | null;
+  stripe_customer_id?: string | null;
+}
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  profile: { full_name?: string } | null;
+  profile: Profile | null;
+  /** True when the user has an active or trialing Pro subscription. */
+  isPro: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -19,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<{full_name?: string } | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
 
 const fetchProfiles = useCallback(async (userId: string) => {
@@ -29,7 +54,7 @@ const fetchProfiles = useCallback(async (userId: string) => {
   .eq('id', userId)
   .single();
   if(!error && data){
-    setProfile(data);
+    setProfile(data as Profile);
 
   } else{
     setProfile(null);
@@ -80,11 +105,24 @@ const refreshProfile = useCallback(async () => {
     setProfile(null);
   };
 
+  // Derived: is this user currently entitled to Pro features?
+  // Trialing counts because we collect a card upfront — if they cancel
+  // mid-trial, the customer.subscription.deleted webhook flips this back.
+  const isPro = useMemo(() => {
+    if (!profile) return false;
+    if (profile.subscription_tier !== 'pro' && profile.subscription_tier !== 'business') {
+      return false;
+    }
+    const status = profile.subscription_status;
+    return status === 'active' || status === 'trialing';
+  }, [profile]);
+
   const value = {
     user,
     session,
     loading,
     profile,
+    isPro,
     refreshProfile,
     signOut,
   };
@@ -98,4 +136,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-} 
+}

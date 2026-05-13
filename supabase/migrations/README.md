@@ -32,3 +32,4 @@ supabase db push
 |------|-----------------------------|---------------------------------------------------|
 | 0001 | `0001_baseline.sql`         | profiles, invoices, invoice_items + RLS + triggers |
 | 0002 | `0002_extract_usage.sql`    | usage table for Textract rate limiting            |
+| 0003 | `0003_stripe_subscriptions.sql` | Stripe customer + subscription columns on profiles |
