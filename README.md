@@ -21,7 +21,7 @@ A 60-second tour:
 
 ## Screenshots
 
-> _Replace these placeholders with screenshots from the live app._
+
 
 | Landing | Dashboard |
 |---|---|
