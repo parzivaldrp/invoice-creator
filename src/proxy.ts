@@ -2,12 +2,14 @@ import { type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
 /**
- * Edge middleware runs on every request matching `config.matcher` below.
+ * Proxy runs on every request matching `config.matcher` below.
  * It refreshes the Supabase session cookie and redirects unauthenticated
  * users away from protected routes — see PROTECTED_PREFIXES in
  * src/lib/supabase/middleware.ts.
+ *
+ * Note: Next.js 16 renamed the "middleware" file convention to "proxy".
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   return await updateSession(request);
 }
 
