@@ -21,6 +21,7 @@ import {
   CalendarClock,
   ChevronRight,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
@@ -107,9 +108,22 @@ function DueBadge({ dueDate, status }: { dueDate: string | null; status: string 
   );
 }
 
+/** Days between now and a future ISO date string. Returns null if invalid/past. */
+function daysUntil(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const target = new Date(iso).getTime();
+  if (Number.isNaN(target)) return null;
+  const diffMs = target - Date.now();
+  if (diffMs <= 0) return null;
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
 export default function Dashboard() {
   const { user, profile } = useAuth();
   const displayName = profile?.full_name ?? user?.email ?? 'Guest';
+
+  const isTrialing = profile?.subscription_status === 'trialing';
+  const trialDaysLeft = isTrialing ? daysUntil(profile?.current_period_end) : null;
 
   const [recent, setRecent] = useState<RecentInvoice[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
@@ -156,6 +170,41 @@ export default function Dashboard() {
               Manage your invoices and account settings
             </p>
           </div>
+
+          {/* Trial countdown — only shown while user is in their 7-day Pro trial */}
+          {isTrialing && trialDaysLeft !== null && (
+            <div
+              role="status"
+              className="mb-6 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 py-3 sm:px-5 sm:py-4 shadow-sm"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 shadow-sm">
+                    <Sparkles className="h-4 w-4 text-white" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {trialDaysLeft === 1
+                        ? 'Last day of your Pro trial'
+                        : `${trialDaysLeft} days left in your Pro trial`}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      You won&apos;t be charged until your trial ends. Cancel anytime.
+                    </p>
+                  </div>
+                </div>
+                <Link href="/profile" className="sm:shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-auto border-blue-300 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                  >
+                    Manage subscription
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -98,14 +98,23 @@ export default function Signup() {
     }
 
    try {
+    // Pass full_name and agree_to_terms via options.data — this lands in
+    // auth.users.raw_user_meta_data, which the on_auth_user_created trigger
+    // (migration 0001) reads to create the profile row. So we don't need
+    // a separate client-side INSERT/RPC after signUp — the trigger does it.
     const { data: { user }, error: signUpError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
+      options: {
+        data: {
+          full_name: formData.name.trim(),
+          agree_to_terms: formData.agreeToTerms,
+        },
+      },
     });
-    
+
     if (signUpError) {
       console.error('Sign up error:', signUpError);
-      // Handle specific error cases
       if (signUpError.message.includes('already registered')) {
         toast.error("This email is already registered. Please sign in instead.");
       } else if (signUpError.message.includes('password')) {
@@ -116,76 +125,40 @@ export default function Signup() {
       setIsLoading(false);
       return;
     }
-    
+
+    // Belt-and-braces: also try the RPC in case the auth.users trigger isn't
+    // installed (older Supabase projects). The trigger runs synchronously on
+    // signUp and uses raw_user_meta_data (which we now pass via options.data
+    // above), so in well-configured projects this is a no-op upsert.
+    // We skip this if `user` is null (anti-enumeration response) since we
+    // have no id to write against — but the request still succeeded.
     if (user) {
-      // Try to create profile using a database function that bypasses RLS
-      // This is more secure than direct insert with RLS policies
-      const { error: profileError } = await supabase.rpc('create_user_profile', {
+      const { error: rpcError } = await supabase.rpc('create_user_profile', {
         user_id: user.id,
-        full_name: formData.name,
+        full_name: formData.name.trim(),
         agree_to_terms: formData.agreeToTerms,
       });
-
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        
-        // If RPC function doesn't exist, try direct insert (will fail if RLS is blocking)
-        if (profileError.code === '42883' || profileError.message.includes('function')) {
-          // Function doesn't exist, try direct insert
-          const { error: directInsertError } = await supabase.from("profiles").insert({
-            id: user.id,
-            full_name: formData.name,
-            agree_to_terms: formData.agreeToTerms,
-          });
-
-          if (directInsertError) {
-            console.error('Direct insert also failed:', directInsertError);
-            if (directInsertError.code === '42501') {
-              // RLS policy error - user needs to set up database trigger or RLS policy
-              toast.error("Account created but profile setup failed. Please run the SQL setup script in Supabase. See console for instructions.");
-              console.error('========================================');
-              console.error('RLS POLICY SETUP REQUIRED');
-              console.error('========================================');
-              console.error('Your account was created, but the profile could not be saved due to missing RLS policies.');
-              console.error('');
-              console.error('TO FIX THIS:');
-              console.error('1. Open your Supabase dashboard');
-              console.error('2. Go to SQL Editor');
-              console.error('3. Open the file: fix-rls-policy.sql (in your project root)');
-              console.error('4. Copy and paste the SQL into the editor');
-              console.error('5. Click "Run"');
-              console.error('');
-              console.error('After running the SQL, signup will work properly!');
-              console.error('========================================');
-            } else if (directInsertError.code === '23505') {
-              // Duplicate key - profile already exists (might be from trigger)
-              console.log('Profile already exists, continuing...');
-            } else {
-              toast.warning("Account created, but profile setup had an issue. Please contact support.");
-            }
-          }
-        } else if (profileError.code === '23505') {
-          // Duplicate key error - profile might already exist
-          console.log('Profile might already exist, continuing...');
-        } else {
-          toast.warning("Account created, but profile setup had an issue. Please contact support.");
-        }
+      if (rpcError) {
+        console.warn('[signup] create_user_profile RPC reported:', rpcError);
       }
-      
-      toast.success("Sign up successful! Check your email for confirmation.");
-      // Propagate ?next= so login can complete the round-trip after sign-in.
-      const rawNext =
-        typeof window !== 'undefined'
-          ? new URLSearchParams(window.location.search).get('next')
-          : null;
-      const safeNextPath =
-        rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
-      router.push(
-        safeNextPath ? `/login?next=${encodeURIComponent(safeNextPath)}` : '/login'
-      );
-    } else {
-      toast.error("Sign up failed: No user was created.");
     }
+
+    // No error from signUp() means the account was created (or already
+    // existed — Supabase hides this for anti-enumeration). Tell the user
+    // their account is good to go, then nudge them to verify their email.
+    toast.success(`Account created for ${formData.email}!`);
+    toast.info('Check your inbox to verify your email before signing in.', {
+      autoClose: 7000,
+    });
+    const rawNext =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('next')
+        : null;
+    const safeNextPath =
+      rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
+    router.push(
+      safeNextPath ? `/login?next=${encodeURIComponent(safeNextPath)}` : '/login'
+    );
    } catch (error: unknown) {
     console.error('Unexpected error during signup:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';

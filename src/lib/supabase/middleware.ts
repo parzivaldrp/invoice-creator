@@ -72,5 +72,20 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Belt-and-braces email verification gate: even if Supabase's "Confirm
+  // email" setting is off (or there's a stale session from before this
+  // check was added), refuse to render protected pages until the user
+  // has clicked the link in their verification email. We sign them out
+  // and send them to /login with ?unverified=<email> so the login page
+  // can show its Resend panel pre-populated.
+  if (isProtected && user && !user.email_confirmed_at) {
+    await supabase.auth.signOut();
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/login';
+    redirectUrl.searchParams.set('unverified', user.email ?? '1');
+    redirectUrl.searchParams.set('next', path + request.nextUrl.search);
+    return NextResponse.redirect(redirectUrl);
+  }
+
   return supabaseResponse;
 }

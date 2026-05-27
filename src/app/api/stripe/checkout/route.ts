@@ -59,11 +59,14 @@ export async function POST(req: Request) {
   // 4. Look up / create Stripe customer ----------------------------------
   // We persist the Stripe customer id on the profile row so the same user
   // upgrading from a second device doesn't create a duplicate customer.
+  // maybeSingle() — not single() — so we don't error out on users whose
+  // profile row never got created (e.g. signed up before the on-auth
+  // trigger was installed). We create the row lazily below.
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
     .select('stripe_customer_id, subscription_status, subscription_tier')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (profileErr) {
     logServerError('profile-read', profileErr);
@@ -73,11 +76,37 @@ export async function POST(req: Request) {
     );
   }
 
+  // Self-healing: if the profile row doesn't exist (auth trigger never
+  // fired for this user), create it now with sensible defaults. Without
+  // this, anyone whose trigger failed could never upgrade.
+  if (!profile) {
+    const { error: insertErr } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        full_name:
+          (user.user_metadata?.full_name as string | undefined)?.trim() ?? null,
+        agree_to_terms: Boolean(user.user_metadata?.agree_to_terms),
+      });
+    if (insertErr) {
+      logServerError('profile-self-heal', insertErr);
+      return NextResponse.json(
+        { error: 'Could not load your account.' },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Re-read (or use empty defaults if just created) — the row now exists
+  // either way. Pull the same fields we needed above.
+  const existingCustomerId = profile?.stripe_customer_id ?? null;
+  const existingTier = profile?.subscription_tier ?? 'free';
+  const existingStatus = profile?.subscription_status ?? null;
+
   // Already on a paid plan in good standing — don't let them double-pay.
   if (
-    profile.subscription_tier === 'pro' &&
-    (profile.subscription_status === 'active' ||
-      profile.subscription_status === 'trialing')
+    existingTier === 'pro' &&
+    (existingStatus === 'active' || existingStatus === 'trialing')
   ) {
     return NextResponse.json(
       { error: 'You are already on the Pro plan.' },
@@ -85,7 +114,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let customerId = profile.stripe_customer_id as string | null;
+  let customerId = existingCustomerId;
 
   if (!customerId) {
     try {

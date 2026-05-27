@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   UserCircle,
   ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
@@ -35,7 +36,7 @@ function getFirstName(name?: string | null, email?: string | null) {
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut, isPro } = useAuth();
   const router = useRouter();
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -144,6 +145,15 @@ export default function Navbar() {
                   <span className="text-sm font-medium text-gray-800 max-w-[120px] truncate">
                     {firstName}
                   </span>
+                  {isPro && (
+                    <span
+                      title="Pro plan"
+                      className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm"
+                    >
+                      <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                      Pro
+                    </span>
+                  )}
                   <ChevronDown
                     className={`h-4 w-4 text-gray-500 transition-transform ${
                       isProfileOpen ? 'rotate-180' : ''
@@ -163,9 +173,17 @@ export default function Navbar() {
                           {initials}
                         </span>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {fullName || firstName}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {fullName || firstName}
+                            </p>
+                            {isPro && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm shrink-0">
+                                <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                                Pro
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 truncate">
                             {email}
                           </p>
@@ -265,9 +283,17 @@ export default function Navbar() {
                     {initials}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">
-                      {fullName || firstName}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {fullName || firstName}
+                      </p>
+                      {isPro && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm shrink-0">
+                          <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                          Pro
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 truncate">{email}</p>
                   </div>
                 </div>

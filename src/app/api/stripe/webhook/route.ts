@@ -60,21 +60,30 @@ async function applySubscriptionToProfile(
   // current_period_end is a unix timestamp (seconds).
   const periodEnd = subscription.items.data[0]?.current_period_end ?? null;
 
+  const updatePayload = {
+    stripe_customer_id:
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer.id,
+    stripe_subscription_id: subscription.id,
+    subscription_status: status,
+    subscription_tier: tier,
+    current_period_end: periodEnd
+      ? new Date(periodEnd * 1000).toISOString()
+      : null,
+  };
+
+  // Upsert (not just update) — handles the edge case where the profile
+  // row doesn't exist yet (e.g. the on_auth_user_created trigger failed,
+  // or the user was created before the trigger was installed). Without
+  // this, a webhook against a missing profile would silently no-op and
+  // the user would stay on the free tier forever.
   const { error } = await supabase
     .from('profiles')
-    .update({
-      stripe_customer_id:
-        typeof subscription.customer === 'string'
-          ? subscription.customer
-          : subscription.customer.id,
-      stripe_subscription_id: subscription.id,
-      subscription_status: status,
-      subscription_tier: tier,
-      current_period_end: periodEnd
-        ? new Date(periodEnd * 1000).toISOString()
-        : null,
-    })
-    .eq('id', userId);
+    .upsert(
+      { id: userId, ...updatePayload },
+      { onConflict: 'id' }
+    );
 
   if (error) {
     logServerError('profile-write', error);
@@ -84,15 +93,19 @@ async function applySubscriptionToProfile(
 
 async function downgradeProfile(userId: string, subscriptionId?: string) {
   const supabase = createAdminClient();
+  // Upsert for symmetry with applySubscriptionToProfile — see comment there.
   const { error } = await supabase
     .from('profiles')
-    .update({
-      stripe_subscription_id: subscriptionId ?? null,
-      subscription_status: 'canceled',
-      subscription_tier: 'free',
-      current_period_end: null,
-    })
-    .eq('id', userId);
+    .upsert(
+      {
+        id: userId,
+        stripe_subscription_id: subscriptionId ?? null,
+        subscription_status: 'canceled',
+        subscription_tier: 'free',
+        current_period_end: null,
+      },
+      { onConflict: 'id' }
+    );
   if (error) {
     logServerError('profile-downgrade', error);
     throw error;

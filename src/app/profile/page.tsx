@@ -24,6 +24,10 @@ import {
   Save,
   ArrowLeft,
   FileText,
+  Sparkles,
+  CreditCard,
+  ExternalLink,
+  Loader2,
 } from 'lucide-react';
 
 function getInitials(name?: string | null, email?: string | null) {
@@ -35,7 +39,7 @@ function getInitials(name?: string | null, email?: string | null) {
 }
 
 export default function ProfilePage() {
-  const { user, profile, loading, refreshProfile } = useAuth();
+  const { user, profile, loading, isPro, refreshProfile } = useAuth();
   const router = useRouter();
 
   const [fullName, setFullName] = useState('');
@@ -43,6 +47,27 @@ export default function ProfilePage() {
   const [invoiceCount, setInvoiceCount] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [openingPortal, setOpeningPortal] = useState(false);
+
+  const openBillingPortal = async () => {
+    if (openingPortal) return;
+    setOpeningPortal(true);
+    try {
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error || 'Could not open billing portal.');
+      }
+      if (!json.url) throw new Error('Stripe did not return a portal URL.');
+      window.location.href = json.url as string;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not open billing portal.');
+      setOpeningPortal(false);
+    }
+  };
 
   // Redirect if logged out (after loading finishes)
   useEffect(() => {
@@ -166,6 +191,79 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Subscription card */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-600" />
+              Subscription
+            </CardTitle>
+            <CardDescription>
+              {isPro
+                ? 'Manage your billing, update your card, view invoices, or cancel.'
+                : 'You’re on the Free plan. Upgrade to Pro to unlock AI extraction and all templates.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isPro ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 shrink-0">
+                    <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+                      Pro plan
+                      <span className="inline-flex items-center rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        {profile?.subscription_status === 'trialing' ? 'Trial' : 'Active'}
+                      </span>
+                    </p>
+                    {profile?.current_period_end && (
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {profile.subscription_status === 'trialing' ? 'Trial ends' : 'Renews'}{' '}
+                        on{' '}
+                        {format(new Date(profile.current_period_end), 'MMMM d, yyyy')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  onClick={openBillingPortal}
+                  disabled={openingPortal}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                >
+                  {openingPortal ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Opening portal…
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Manage subscription
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="font-semibold text-gray-900">Free plan</p>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Up to 5 invoices per month, basic templates, email support.
+                  </p>
+                </div>
+                <Link href="/billing?plan=pro">
+                  <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Upgrade to Pro
+                  </Button>
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
 

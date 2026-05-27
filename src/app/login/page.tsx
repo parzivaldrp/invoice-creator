@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'react-toastify';
 
@@ -27,10 +27,49 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-    const router = useRouter();
+  // When Supabase says the email isn't confirmed we show an inline panel
+  // with a Resend button. Holds the email that needs confirming so the
+  // Resend call uses exactly what the user just typed.
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
+  const [isResending, setIsResending] = useState(false);
+  const router = useRouter();
 
+  // Surface state from query params after redirects:
+  //   ?unverified=<email> — middleware bounced an unverified session here
+  //   ?error=invalid_link — /auth/confirm got a token_hash but no type
+  //   ?error=expired_link — link was already used or has expired
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
 
+    const unverified = params.get('unverified');
+    if (unverified && unverified !== '1') {
+      setEmail(unverified);
+      setUnconfirmedEmail(unverified);
+    }
 
+    const error = params.get('error');
+    if (error === 'expired_link') {
+      toast.error('That verification link has expired. Sign in to get a new one.');
+    } else if (error === 'invalid_link') {
+      toast.error('That verification link is invalid. Try signing up again.');
+    }
+  }, []);
+
+  const handleResendConfirmation = async () => {
+    if (!unconfirmedEmail || isResending) return;
+    setIsResending(true);
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: unconfirmedEmail,
+    });
+    setIsResending(false);
+    if (error) {
+      toast.error(`Could not resend: ${error.message}`);
+    } else {
+      toast.success(`Verification email re-sent to ${unconfirmedEmail}.`);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,24 +93,39 @@ export default function Login() {
     }
 
     setIsLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    setUnconfirmedEmail(null); // clear any previous unconfirmed panel
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     });
-    setIsLoading(false);
 
     if (error) {
+      setIsLoading(false);
       if (error.message.includes("Invalid login credentials")) {
         toast.error("Incorrect email or password.");
       } else if (error.message.includes("Email not confirmed")) {
-        toast.warning("Please confirm your email before logging in.");
+        // Supabase's built-in enforcement (Confirm email setting ON).
+        setUnconfirmedEmail(email);
       } else {
         toast.error(error.message);
       }
-    } else {
-      toast.success("Logged in successfully!");
-      router.push(safeNext() ?? '/');
+      return;
     }
+
+    // Defense-in-depth: even if Supabase's "Confirm email" setting is off
+    // (or its enforcement has a gap), we refuse to let an unverified user
+    // hold an authenticated session. Sign them right back out and show
+    // the verification panel so they can resend the link.
+    if (!data.user?.email_confirmed_at) {
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      setUnconfirmedEmail(email);
+      return;
+    }
+
+    setIsLoading(false);
+    toast.success("Logged in successfully!");
+    router.push(safeNext() ?? '/');
   };
 
   /**
@@ -127,6 +181,49 @@ export default function Login() {
 
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
+              {/* Unconfirmed-email panel — appears only after a failed sign-in
+                  with that specific Supabase error. Gives the user a way to
+                  recover without leaving the page. */}
+              {unconfirmedEmail && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3"
+                >
+                  <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-amber-900">
+                      Verify your email to sign in
+                    </p>
+                    <p className="text-xs text-amber-800 mt-1 break-words">
+                      We sent a confirmation link to{' '}
+                      <span className="font-medium">{unconfirmedEmail}</span>. Click
+                      it before signing in. Can&apos;t find it? Check your spam
+                      folder, or resend below.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={handleResendConfirmation}
+                      disabled={isResending}
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-900"
+                    >
+                      {isResending ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          Sending…
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="h-3.5 w-3.5 mr-1.5" />
+                          Resend verification email
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label
                   htmlFor="email"
